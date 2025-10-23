@@ -16,6 +16,7 @@ pacman::p_load(
   stringr,
   survminer,
   tidyverse,
+  waldo,
   zoo
 )
 
@@ -89,7 +90,7 @@ get_data_from_google_drive <- FALSE
 # set this to TRUE to pull EXAMPLE data from google drive.
 # if you already have the data that you want in data/event_files
 # set it to false to save time
-get_EXAMPLE_data_from_google_drive <- TRUE
+get_EXAMPLE_data_from_google_drive <- FALSE
 
 ### denomiantor settings----------
 # number of days in each denominator count,
