@@ -91,7 +91,7 @@ get_data_from_google_drive <- FALSE
 # set this to TRUE to pull EXAMPLE data from google drive.
 # if you already have the data that you want in data/event_files
 # set it to false to save time
-get_EXAMPLE_data_from_google_drive <- FALSE
+get_EXAMPLE_data_from_google_drive <- TRUE
 
 ### denomiantor settings----------
 # number of days in each denominator count,
@@ -159,3 +159,4 @@ quarto::quarto_render("report_explore_lame.qmd")
 
 # TODO List --------------------------------------------
 # add milk data for example farms
+
