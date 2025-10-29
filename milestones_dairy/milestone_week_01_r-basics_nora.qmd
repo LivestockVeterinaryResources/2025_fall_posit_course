@@ -125,8 +125,6 @@ I use this a whole lot when specifying levels of factors or mapping colors to
 breeds<-sort(unique(animals$breed))
 breeds
 
-
-
 ```
 
 
