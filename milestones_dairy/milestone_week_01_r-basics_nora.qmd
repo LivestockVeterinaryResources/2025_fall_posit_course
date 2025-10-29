@@ -112,17 +112,49 @@ Explore `animals` in a new way. Consider using a new function, or something that
 
 Write your extension code in the following chunk:
 
-## List animal ID s
+## Explore the Breed Variable
 
 
 
+### list the values
 
+I use this a whole lot when specifying levels of factors or mapping colors to 
 
 ```{r}
 
-sexes<-sort(unique(animals$breed))
-breed
-
+breeds<-sort(unique(animals$breed))
+breeds
 
 ```
+
+
+### fast table
+
+very fast easy code,  . . . not very pretty
+
+```{r}
+
+table(animals$breed)
+
+```
+
+### better formatted table
+
+Easier to look at when sorted and vertical
+
+```{r}
+animals %>%
+  count(breed, sort = TRUE)
+
+```
+
+### data frame table in environment
+
+This can be used later for standardization or graphing.
+```{r}
+
+table_breeds<-animals%>%count(breed, sort = TRUE)
+
+```
+
 
