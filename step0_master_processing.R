@@ -1,3 +1,4 @@
+
 # loads packages for set up ------------
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
@@ -16,6 +17,7 @@ pacman::p_load(
   stringr,
   survminer,
   tidyverse,
+  waldo,
   zoo
 )
 
