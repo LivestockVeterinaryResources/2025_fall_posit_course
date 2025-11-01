@@ -107,10 +107,12 @@ Write your extension code in the following chunk:
 ```{r}
 #| label: extension
 
+head(animals)
 max(animals$age_left)
 max(animals$age_enrolled)
 min(animals$age_left)
 min(animals$age_enrolled)
 min_date(animals$date_sold)
+animals|>  distinct(breed, sex, location_list)
 
 ```
