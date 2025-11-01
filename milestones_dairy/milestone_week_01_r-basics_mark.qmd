@@ -41,11 +41,12 @@ Write your code in the following chunk:
 animals
 glimpse(animals)
 animals %>% summary(id_animal)
-mean(animals$ age_left)
-
+number_of_rows <- nrow(animals)
+age_left <- mean(animals$ age_left)
+# load dplyr library
 library(dplyr)
 counts <- animals %>%
-  count(breed, sex, location_list)
+  count(breed, sex, location_list, sort=TRUE)
 view(counts)
 
 
@@ -92,10 +93,10 @@ Write your code in the following chunk:
 ```{r}
 #| label: recreation of summary
 excel_excuses <- skim(animals)
-
 excel_excuses
-
 write_csv(excel_excuses,"excel_excuses.csv")
+# Set up the summary for skim()
+skim_animals <- skim(animals)
 
 ```
 
