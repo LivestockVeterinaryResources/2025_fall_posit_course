@@ -114,3 +114,11 @@ Write your extension code in the following chunk:
 count(animals,date_sold[NA], sort=TRUE)
 count(animals,location_list, sort=TRUE)
 count(animals,location_list, date_died[NA], sort=TRUE)
+```
+
+
+```{r}
+sum(is.na(animals["date_died"]))
+skim_animals[[8,3]]
+
+```
