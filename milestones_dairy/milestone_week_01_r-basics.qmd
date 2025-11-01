@@ -39,6 +39,12 @@ Write your code in the following chunk:
 ```{r}
 #| label: recreation
 
+number_of_rows <- nrow(animals)
+
+average_age_left <- mean(animals$age_left)
+
+counts <- count(animals, location_list, breed, sex)
+
 
 
 ```
@@ -83,6 +89,9 @@ Write your code in the following chunk:
 ```{r}
 #| label: recreation of summary
 
+summary(animals)
+
+skim_animals <- skim(animals)
 
 
 ```
@@ -101,5 +110,8 @@ Write your extension code in the following chunk:
 
 ```{r}
 #| label: extension
+
+# trying to show each variable type of skim funtion
+skim_animals_numbers <- skim_animalsp[1]
 
 ```
