@@ -1,6 +1,13 @@
 ---
 title: R Basics
-format: html
+author: Gerard Cramer
+date: "`r Sys.Date()`"
+format: 
+  html: 
+    default: true
+    embed-resources: true
+  docx: default
+  pdf: default
 ---
 
 ```{r}
