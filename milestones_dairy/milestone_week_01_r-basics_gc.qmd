@@ -40,12 +40,11 @@ Write your code in the following chunk:
 #| label: recreation
 
 number_of_rows <- nrow(animals)
-
 average_age_left <- mean(animals$age_left)
 
-counts <- count(animals, location_list, breed, sex)
-
-
+# showing use of pipe
+counts <- animals |> 
+  count(breed, sex, location_list)
 
 ```
 
@@ -65,7 +64,8 @@ Check age_left:
 
 ```{r, echo=FALSE}
 
-waldo::compare(age_left, read_rds('data_milestones/solutions_week_01_age_left.rds'))
+waldo::compare(average_age_left, read_rds('data_milestones/solutions_week_01_age_left.rds'))
+
 
 ```
 
@@ -93,6 +93,7 @@ summary(animals)
 
 skim_animals <- skim(animals)
 
+skim_animals
 
 ```
 
@@ -108,10 +109,74 @@ Explore `animals` in a new way. Consider using a new function, or something that
 
 Write your extension code in the following chunk:
 
+Trying to show other uses of skim
+
 ```{r}
 #| label: extension
 
+
 # trying to show each variable type of skim funtion
-skim_animals_numbers <- skim_animalsp[1]
+skim_animals_separate <- partition(skim_animals)
+```
+
+# first in list
+```{r}
+# first in list
+skim_animals_separate[[1]]
+```
+
+# 2nd in list
+```{r}
+# 2nd in list
+skim_animals_separate[[2]]
+```
+
+# 3rd in list
+```{r}
+# 3rd in list
+skim_animals_separate[[3]]
+
 
 ```
+
+# alternative way to just numeric with just a few of the summary skims
+
+```{r}
+
+skim_bare <- skim_with(numeric = sfl(
+  # this adds a n column
+  n = length,
+  # this removes some of the columns
+  p25 = NULL,
+  p75 = NULL,
+  sd = NULL,)
+  )
+
+skim_alt <- animals |> 
+  skim_bare()
+
+yank(skim_alt, "numeric") 
+```
+# Alternative way with custom order of variables
+
+```{r}
+
+skim_bare <- skim_with(numeric = sfl(
+  # this adds a n column
+  n = length,
+  # this selects columns in order I want them
+  mean = mean,
+  p0 = ~min(., na.rm = TRUE),
+  median = median,
+  p100 = ~max(., na.rm = TRUE),
+  hist = inline_hist),
+  append = FALSE
+  )
+
+skim_alt <- animals |> 
+  skim_bare()
+
+yank(skim_alt, "numeric") 
+
+```
+
