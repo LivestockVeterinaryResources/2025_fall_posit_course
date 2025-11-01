@@ -1,6 +1,7 @@
 ---
 title: R Basics
 format: html
+embed-resources: true
 ---
 
 ```{r}
@@ -44,12 +45,21 @@ animals
 ```
 
 ```{r}
+
 number_of_rows<-nrow(animals)
+number_of_rows
 
 average_age_left<-mean(animals$age_left)
+average_age_left
 
+```
+
+
+```{r}
 counts<-animals%>%
   count(breed, sex, location_list)
+
+counts
 
 ```
 
@@ -92,7 +102,15 @@ Now summarize the data:
 Write your code in the following chunk:
 
 ```{r}
-#| label: recreation of summary
+#| label: summary
+
+summary(animals)
+
+```
+
+
+```{r}
+#| label: skim
 
 skim_animals<-skim(animals)
 
