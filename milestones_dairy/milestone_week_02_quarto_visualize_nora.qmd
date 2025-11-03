@@ -1,0 +1,245 @@
+---
+title: Read and Visualize
+format: html
+embed_resources: true
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load your packages here
+
+library(tidyverse) #this includes many packages and is the main package used in nearly all data wrangling
+library(arrow) #this package handles parquet files
+library(skimr) #this is particularly helpful when looking at new data or finding NA values
+library(waldo) #we use this to create answer keys for these exercises
+
+
+```
+
+## Read and Visualize
+
+In this milestone, you'll use ggplot2 to visualize the distribution of age_left for a subset of the data. But before you begin, you'll need to import the animals data set. Unlike with Milestone 1, the animals data set has not been pre-loaded for you to use in R.
+
+
+## Recreation
+
+### Part 1 - Import
+
+In the code chunk below, use a command from the arrow package to read in the animals data set.
+
+* The animals data set lives in the file `animals.parquet` (think of parquet as just another file extension like .csv, or .doc), which is stored in the `data/intermediate_files` folder in your working directory.  However, this quarto document lives in a folder below the working directory, so when you call the file path you need to use "../" at the beginning of the path to tell it to look for the path beginning one level higher than where this quarto document is stored. 
+
+* Save the data set as an object in your environment named `animals`.
+
+
+```{r}
+#| label: recreation-import
+#hint the function to read in a parquet file is the same as the code to read a csv file except replace 'csv' with 'parquet'
+
+animals<-read_parquet('../data/intermediate_files/animals.parquet')
+
+
+```
+
+### Part 2 - Visualize
+
+Run the code chunk below to see a plot. Your task is to recreate this plot. 
+
+
+```{r}
+#| label: recreate-this
+#| message: false
+
+knitr::include_graphics("images/milestone02.png")
+```
+
+Use `ggplot()` in the chunk below to re-create the plot above. Before plotting, you will first need to filter your data set to only include observations from cattle where age_left is more than 1 year.
+
+
+```{r}
+#| label: recreation-visualize
+
+ggplot(animals%>%filter(age_left>365))+
+  geom_histogram(aes(x = age_left), color = 'red')+
+  theme(aspect.ratio = 1)
+
+```
+
+
+
+
+## Extension
+
+Using the code chunk below, investigate a research question about this data, using the visualization skills you learned this week. Some ideas:
+
+1. How does the distribution of age_left differ between breeds? Consider exploring these distributions with other geoms.
+2. What relationships do you see between age_left and other variables of interest in the data set?
+3. [any other research question of interest]
+
+Alternately, working with a data set of your own, complete the following: 
+
+1. Read in your data
+2. Filter your data using a logical test/condition 
+3. Graph this data subset using at least one geom 
+
+
+
+## wrangle animals
+
+
+```{r}
+animals2<-animals%>%
+         mutate(outcome = case_when(
+           is.na(date_left)~'active', 
+           is.na(date_sold)>0~'sold', 
+           is.na(date_died)>0~'died',
+           TRUE~'error'))%>%
+  mutate(year_born = floor_date(date_birth, unit = 'year'))%>%
+  mutate(left_as_calf = age_left<365)
+
+```
+
+## plot animals
+
+Facets are by whether the animal left as a calf (TRUE or FALSE), and what was reason for leaving (died or sold)
+
+```{r}
+colors_outcome<-c("active" = 'green',  "died" = 'red',   "error" = 'orange',  "sold" = 'blue' )
+
+ggplot(animals2%>%
+         filter(outcome %in% c('died', 'sold'))%>%
+         filter(!(is.na(left_as_calf))))+
+  geom_point(aes(x = year_born, y = age_left), 
+             position = position_jitter(), 
+             size = .2, 
+             alpha = .2)+
+  geom_boxplot(aes(x = year_born, y = age_left, 
+                   fill = outcome, group = year_born), 
+               alpha = .4, 
+               position = position_dodge2(), 
+               outlier.color = NA)+
+  facet_wrap(outcome~left_as_calf, scales = 'free')+
+  scale_fill_manual(values = colors_outcome)+
+  scale_color_manual(values = colors_outcome)
+
+
+ggplot(animals2%>%
+         filter(outcome %in% c('died', 'sold'))%>%
+         filter(!(is.na(left_as_calf))))+
+  geom_point(aes(x = year_born, y = age_left), 
+             position = position_jitter(), 
+             size = .2, 
+             alpha = .2)+
+  geom_violin(aes(x = year_born, y = age_left, 
+                   fill = outcome, group = year_born), 
+               alpha = .5, scale = 'width')+
+  facet_wrap(outcome~left_as_calf, scales = 'free')+
+  scale_fill_manual(values = colors_outcome)+
+  scale_color_manual(values = colors_outcome)
+
+
+
+```
+
+## Extra Extension
+
+## wrangle outcomes
+
+```{r}
+#| label: extension
+
+animal_lactations<-read_parquet('../data/intermediate_files/animal_lactations.parquet')
+
+animal_lacts<-animal_lactations%>%
+  group_by(id_animal)%>%
+  mutate(lact_min = min(lact_number), 
+         lact_max = max(lact_number))%>%
+  ungroup()%>%
+  left_join(animals)%>%
+  mutate(status_at_archive = case_when(
+    is.na(date_archive)~'active',
+    is.na(date_next_fresh)<1~'new lact', 
+    (lact_number == 0)&(lact_max>0)~'new lact', 
+     #is.na(date_dry)<1~'dry', 
+    is.na(date_died)<1~'died', 
+    is.na(date_sold)<1~'sold',
+    is.na(date_archive)<1~'archived',
+    TRUE~'ERROR')
+    )
+
+check<-animal_lacts%>%
+  filter(status_at_archive %in% 'ERROR')
+
+lact_outcomes<-animal_lacts%>%
+   mutate(year_start = floor_date(date_lact_first_event, unit = 'year'))%>%
+
+  #filters----------------------
+  filter(!(year_start %in% 'unknown'))%>%
+  filter(year_start>=lubridate::ymd('2019-01-01'))%>%
+  #filter(!(status_at_archive %in% 'active'))%>% #use this to include or exclude actives
+  
+  #groups----------------------
+  group_by(location_lact_list, year_start, lact_group_5)%>%
+  mutate(total_lacts = n_distinct(id_animal_lact) )%>%
+  ungroup()%>%
+  group_by(location_lact_list, year_start, lact_group_5, status_at_archive, total_lacts)%>%
+  summarize(count_lacts = n_distinct(id_animal_lact) )%>%
+  ungroup()%>%
+  mutate(outcome_pct = round((count_lacts/total_lacts)*100, digits = 2))%>%
+  mutate(status_at_archive = factor(status_at_archive, 
+                                    levels = c("new lact", "active",   "archived", "sold",  "died")))%>%
+  mutate(date_start = lubridate::ymd(year_start))
+
+sort(unique(lact_outcomes$status_at_archive))
+
+test<-animal_lacts%>%
+  filter(id_animal %in% '108e618-b6fb-42fe-84de-54f849_21762_08/07/16')
+
+#colors_outcome<-c("new lact" = 'blue', "active" = 'cyan',   "archived" = 'grey30', "sold" = 'gold',  "died" = 'red')
+colors_outcome<-c("new lact" = '#018571', "active" = '#80cdc1',   "archived" = 'grey30', "sold" = '#dfc27d',  "died" = '#a6611a')
+
+
+
+```
+
+
+## plot outcomes
+
+```{r}
+ggplot(lact_outcomes)+
+  geom_point(aes(x = year_start, y = outcome_pct, color = status_at_archive))+
+  facet_grid(status_at_archive~lact_group_5)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values = colors_outcome)
+
+ggplot(lact_outcomes)+
+  geom_point(aes(x = year_start, y = outcome_pct, color = status_at_archive))+
+  facet_grid(status_at_archive~lact_group_5, scales = 'free_y')+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values = colors_outcome)
+
+ggplot(lact_outcomes)+
+  geom_bar(aes(x = date_start, y = outcome_pct, fill = status_at_archive), stat = 'identity')+
+    geom_smooth(aes(x = date_start, y = outcome_pct), color = 'black', fill = 'black', alpha = .2)+
+  facet_grid(status_at_archive~lact_group_5, scales = 'free_y')+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values = colors_outcome)+
+  scale_fill_manual(values = colors_outcome)
+
+ggplot(lact_outcomes%>%filter(!(year_start %in% 'unknown')))+
+  geom_col(aes(x = year_start, y = outcome_pct, fill = status_at_archive))+
+  facet_grid(.~lact_group_5)+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  scale_color_manual(values = colors_outcome)+
+  scale_fill_manual(values = colors_outcome)
+```
+
+
+

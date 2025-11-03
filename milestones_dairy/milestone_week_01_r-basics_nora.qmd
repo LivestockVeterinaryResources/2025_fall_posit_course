@@ -1,6 +1,7 @@
 ---
 title: R Basics
-format: html
+output:
+  doc:
 embed-resources: true
 ---
 

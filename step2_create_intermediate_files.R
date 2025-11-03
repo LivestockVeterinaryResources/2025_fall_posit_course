@@ -109,7 +109,6 @@ animal_lactations <- events_formatted |>
   ) |>
   ungroup()
 
-
 ## archives - each row is animal/lactation-----------
 archives <- events_formatted |>
   select(id_animal_lact, date_archived) |>
