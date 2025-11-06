@@ -50,6 +50,10 @@ average_age_left <- (mean(animals$age_left))
 
 animals %>% count(breed, sex, location_list)
 counts <-animals %>% count(breed, sex, location_list)
+## to make the pipe it's control, shift, "m" ->> %>% 
+## This is useful when trying to keep your workflow nice, and the dplyr library is inside the tidyverse package 
+## if you put a # in front of other variable it takes it out (in a list)
+## and if you hit enter a lot it will respond differently if your syntax is correct or not 
 ```
 
 #### Check your answers
