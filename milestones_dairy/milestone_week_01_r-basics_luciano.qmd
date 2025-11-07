@@ -114,5 +114,11 @@ min(animals$age_left)
 min(animals$age_enrolled)
 min_date(animals$date_sold)
 animals|>  distinct(breed, sex, location_list)
+```
 
+
+```{r}
+#| label: tests
+sum(is.na(animals["date_died"]))
+skim_animals [9,3]
 ```
