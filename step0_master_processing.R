@@ -40,8 +40,8 @@ source("functions/fxn_treatment.R")
 
 ### animal id---------
 # fxn_assign_id_animal options:
-# fxn_assign_id_animal_default, fxn_assign_id_animal_parnell
-fxn_assign_id_animal <- fxn_assign_id_animal_parnell
+#fxn_assign_id_animal_default, fxn_assign_id_animal_parnell
+fxn_assign_id_animal <- fxn_assign_id_animal_default
 
 ### parsing---------
 # parse_free_text options: fxn_parse_remark_default, fxn_parse_remark_custom
@@ -52,8 +52,9 @@ fxn_parse_protocols <- fxn_parse_protocols_default
 
 ### locations----------
 # location_event options:
-# fxn_assign_location_event_default, fxn_assign_location_event_custom
-fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
+#fxn_assign_location_event_default, fxn_assign_location_event_custom
+set_farm_name <- "MMW"
+fxn_assign_location_event <- fxn_assign_location_event_default
 
 # detect_location_lesion options:
 # fxn_detect_location_lesion_default, fxn_detect_location_lesion_custom
@@ -92,7 +93,7 @@ get_data_from_google_drive <- FALSE
 # set this to TRUE to pull EXAMPLE data from google drive.
 # if you already have the data that you want in data/event_files
 # set it to false to save time
-get_EXAMPLE_data_from_google_drive <- TRUE
+get_EXAMPLE_data_from_google_drive <- FALSE
 
 ### denomiantor settings----------
 # number of days in each denominator count,
