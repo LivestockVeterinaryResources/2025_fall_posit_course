@@ -101,6 +101,7 @@ Alternately, working with a data set of your own, complete the following:
 ```{r}
 #| label: extension
 
+# simple graph
 graph_breed <- animals |> 
   filter(age_left > 365) |>
   # show distribution of age left by breed
@@ -113,6 +114,45 @@ graph_breed <- animals |>
 
 graph_breed
 
+
+```
+
+```{r}
+#| label: fig-exention2
+
+library(PupillometryR)
+
+graph_breed_2 <- animals |> 
+  filter(age_left > 365, breed %in% c("H", "X")) |>
+  # show distribution of age left by breed
+  ggplot(aes(breed, age_left, fill = breed, color = breed)) +
+  geom_flat_violin(aes(color = breed),
+                   alpha = 0.4
+                   )+
+  stat_summary(fun.data = median_hilow, 
+               geom = "pointrange",
+               size = 0.4,
+               color = "darkgrey",
+               position = position_nudge(x = -0.02)
+  )+
+  stat_summary(fun = median, 
+               aes(label = paste("", round(..y.., 0))), 
+               geom = "text", 
+               size = 5,
+               vjust = -0.08,
+               color = "black",
+               alpha = 0.8,
+               hjust = 1.1,
+               position = position_nudge(x = -0.04)
+  )+
+  # start to make prettier
+  scale_fill_viridis_d()+
+  scale_color_viridis_d()+
+  theme_minimal()+
+  labs(x = "Breed Code")+
+  theme(legend.position = "none")
+
+graph_breed_2
 
 
 ```
