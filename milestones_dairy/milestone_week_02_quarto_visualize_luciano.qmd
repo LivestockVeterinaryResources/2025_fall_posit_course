@@ -39,8 +39,7 @@ In the code chunk below, use a command from the arrow package to read in the ani
 #| label: recreation-import
 #hint the function to read in a parquet file is the same as the code to read a csv file except replace 'csv' with 'parquet'
 
-
-
+animals <- read_parquet("../data/intermediate_files/animals.parquet")
 
 ```
 
@@ -62,6 +61,22 @@ Use `ggplot()` in the chunk below to re-create the plot above. Before plotting, 
 ```{r}
 #| label: recreation-visualize
 
+animals_filtered <- filter(animals, age_left > 365)
+
+ggplot (data = animals_filtered, mapping = aes(x=age_left)) +
+  geom_histogram(color = "red")
+  #coord_cartesian(ylim = c(0,2000))
+```
+
+This next chunk was just my practice to run it in a more streamlined way (did not create a new dataset in this case)
+
+```{r}
+geom_histogram()
+
+animals |> 
+  filter(age_left>365) |> 
+  ggplot(mapping = aes(x=age_left)) +
+  geom_histogram(color = "#7a0019", linewidth = 1 , fill = "#ffcc33")
 
 
 ```
@@ -88,7 +103,39 @@ Alternately, working with a data set of your own, complete the following:
 ```{r}
 #| label: extension
 
+animals |> 
+  filter(age_left>365 & breed != "-") |>
+  ggplot(mapping = aes(x=age_left, fill = breed)) +
+  geom_histogram()+
+  scale_fill_viridis_d()+
+  labs(title = "Age left by breed (without breed -)")
 
+animals |> 
+  filter(age_left>365 & breed != "-") |> 
+  ggplot( mapping = aes(x=age_left, fill = breed)) +
+  geom_boxplot(mapping = aes(x=breed, y=age_left))+
+  scale_fill_viridis_d()+
+  labs(title = "Age left by breed (without breed -) Boxplot")
+
+animals |> 
+  filter(age_left>365 & breed != "-") 
+
+  overall_mean <- mean(animals$age_left, na.rm = TRUE)
+  overall_median <- median (animals$age_left, na.rm = TRUE )
+  
+  ggplot(data=animals, mapping = aes(x=breed, y = age_left, fill=breed)) +
+  geom_boxplot()+
+  geom_hline(yintercept = overall_median, color = "purple", linewidth =1)+
+  geom_hline(yintercept = overall_mean, color = "red", linewidth =1)+
+  scale_fill_viridis_d()+
+  labs(title = "Age left by breed",
+       caption = "red line = overall mean; purple line = overall median")
+  
+
+animals |> 
+  filter(age_left>365 & breed != "_") |> 
+  ggplot (mapping = aes(x = age_enrolled, y = age_left))+
+  geom_point(mapping = aes(color = breed))
 
 
 ```
