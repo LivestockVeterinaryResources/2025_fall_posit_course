@@ -1,7 +1,14 @@
 ---
 title: Read and Visualize
-format: html
-embed_resources: true
+format: 
+ html:
+   embed-resources: true
+   toc: true
+   toc-location: left
+execute:
+    echo: false
+    message: false
+    warning: false
 ---
 
 ```{r}
@@ -209,20 +216,27 @@ colors_outcome<-c("new lact" = '#018571', "active" = '#80cdc1',   "archived" = '
 ## plot outcomes
 
 ```{r}
-ggplot(lact_outcomes)+
-  geom_point(aes(x = year_start, y = outcome_pct, color = status_at_archive))+
+ggplot()+
+  geom_point(data = lact_outcomes, 
+             aes(x = year_start, y = outcome_pct, color = status_at_archive))+
   facet_grid(status_at_archive~lact_group_5)+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
   scale_color_manual(values = colors_outcome)
+```
 
+
+```{r}
 ggplot(lact_outcomes)+
   geom_point(aes(x = year_start, y = outcome_pct, color = status_at_archive))+
   facet_grid(status_at_archive~lact_group_5, scales = 'free_y')+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
   scale_color_manual(values = colors_outcome)
+```
 
+
+```{r}
 ggplot(lact_outcomes)+
   geom_bar(aes(x = date_start, y = outcome_pct, fill = status_at_archive), stat = 'identity')+
     geom_smooth(aes(x = date_start, y = outcome_pct), color = 'black', fill = 'black', alpha = .2)+
@@ -231,7 +245,10 @@ ggplot(lact_outcomes)+
   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
   scale_color_manual(values = colors_outcome)+
   scale_fill_manual(values = colors_outcome)
+```
 
+
+```{r}
 ggplot(lact_outcomes%>%filter(!(year_start %in% 'unknown')))+
   geom_col(aes(x = year_start, y = outcome_pct, fill = status_at_archive))+
   facet_grid(.~lact_group_5)+
