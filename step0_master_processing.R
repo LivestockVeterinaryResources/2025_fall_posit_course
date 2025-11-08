@@ -3,6 +3,7 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
   arrow,
+  broom,
   DT,
   dtplyr,
   cardx,
@@ -161,3 +162,4 @@ quarto::quarto_render("report_explore_lame.qmd")
 
 # TODO List --------------------------------------------
 # add milk data for example farms
+
