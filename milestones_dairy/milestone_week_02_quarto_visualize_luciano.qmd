@@ -137,6 +137,13 @@ animals |>
   ggplot (mapping = aes(x = age_enrolled, y = age_left))+
   geom_point(mapping = aes(color = breed))
 
+animals |> 
+  filter (age_left>365 & breed != "-") |> 
+  ggplot (mapping = aes (x = date_birth, y = age_left, color = breed))+
+  geom_point()+
+  labs(title = "Age left by birth day, grouped by breed"
+       )
+
 
 ```
 
