@@ -2,7 +2,9 @@
 title: R Basics
 format: html
 ---
+
 # Added install.packages("skimr")
+
 #Added dplyr in library
 
 ```{r}
@@ -115,7 +117,6 @@ count(animals,date_sold[NA], sort=TRUE)
 count(animals,location_list, sort=TRUE)
 count(animals,location_list, date_died[NA], sort=TRUE)
 ```
-
 
 ```{r}
 sum(is.na(animals["date_died"]))
