@@ -62,7 +62,7 @@ Use `ggplot()` in the chunk below to re-create the plot above. Before plotting, 
 ```{r}
 #| label: recreation-visualize
 age_left_1 <- animals |> 
-  filter(age_left > 365)
+  filter(age_left > 1)
 
 
 
@@ -91,10 +91,17 @@ Alternately, working with a data set of your own, complete the following:
 #| label: extension
 skim(age_left_1)
 
-ggplot(age_left_1, aes(x = date_left, y = age_left))
-  
+graph <- ggplot(age_left_1, aes(x = date_left, fill = age_left)) +
+  geom_histogram(binwidth = 30, position = "dodge", color = "black") +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Animals that have Left Herd over time",
+    x = "Date",
+    y = "Count",
+    fill = "Age"
+  )
 
-
+print(graph)
 
 
 ```
