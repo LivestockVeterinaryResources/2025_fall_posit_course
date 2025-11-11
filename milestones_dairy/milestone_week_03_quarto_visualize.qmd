@@ -2,7 +2,6 @@
 title: Read and Visualize
 date: "`r Sys.Date()`"
 embed-resources: true
-
 ---
 
 ```{r}
@@ -36,8 +35,9 @@ Before you begin, you will need to import your data set. Use the code chunk belo
 #| label: recreation-import
 
 #add code to read in the events file here
+events_formatted <- read_parquet('C:/Users/srmh0/OneDrive/Documents/GitHub/2025_fall_posit_course/data/intermediate_files/events_formatted.parquet')
 
-
+add_new_variables(events_formatted)
 ```
 
 ### Part 2 - Summarize data
@@ -50,7 +50,7 @@ You will learn to write the code to add new variables (like month bred) in a few
 
 Before you move on, run the code chunk below to make sure you see all the grouping variables in your list of variable names. The output of this chunk should be:
 
-"floordate_month" "lact_group" "location_event" 
+"floordate_month" "lact_group" "location_event"
 
 If don't get a green checkmark here, you need to fix the chunk above in part 1 before you move on.
 
@@ -109,9 +109,29 @@ Work in the code chunk below. Save the result as `dim_at_bred`. We will use the 
 #| label: recreation-summary
 #
 
-
-
-
+dim_at_bred <- events_formatted %>%
+  # limit to BRED1 events only
+  filter(event == "BRED1") %>%
+  
+  # restrict to the past 3 years from today
+  filter(date_event >= today() - years(3)) %>%
+  
+  # create first-of-month date
+  mutate(floordate_month = floor_date(date_event, unit = "month")) %>%
+  
+  # group by location, lactation group, and month
+  group_by(location_event, lact_group, floordate_month) %>%
+  
+  # calculate summary statistics
+  summarise(
+    mean   = mean(dim_event, na.rm = TRUE),
+    sd     = sd(dim_event, na.rm = TRUE),
+    median = median(dim_event, na.rm = TRUE),
+    min    = min(dim_event, na.rm = TRUE),
+    max    = max(dim_event, na.rm = TRUE),
+    q97    = quantile(dim_event, probs = 0.97, na.rm = TRUE),
+    .groups = "drop"
+  )
 ```
 
 Run the following code chunk to test whether you have the same answer as the solution:
@@ -137,7 +157,34 @@ Use the code chunk below to create the plot above. Hint: if your geom_smooth lin
 ```{r}
 #| label: recreation-plot
 
-
+ggplot(
+  data = dim_at_bred,
+       mapping = aes(x = floordate_month, y = q97, 
+          fill = lact_group)) +
+  
+  geom_ribbon(aes(ymin = q97 - sd, ymax = q97 + sd),
+              alpha = 0.15, color = NA) +
+  
+  geom_line(linewidth = 1.1) +       
+  geom_point(size = 2) +              # size OK for points
+  facet_wrap(lact_group, scales = "free_y") +
+  
+  labs(
+    x = "Month",
+    y = "97th percentile DIM at BRED1",
+    title = "DIM at BRED1 by Lactation Group",
+    subtitle = unique(dim_at_bred$location_event)
+  ) +
+  
+  scale_color_brewer(palette = "Set2") +
+  scale_fill_brewer(palette = "Set2") +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 14, face = "bold"),
+    plot.title = element_text(size = 18, face = "bold")
+  )
 ```
 
 ## Extension
