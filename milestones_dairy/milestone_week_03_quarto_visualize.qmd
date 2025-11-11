@@ -37,7 +37,7 @@ Before you begin, you will need to import your data set. Use the code chunk belo
 #add code to read in the events file here
 events_formatted <- read_parquet('C:/Users/srmh0/OneDrive/Documents/GitHub/2025_fall_posit_course/data/intermediate_files/events_formatted.parquet')
 
-add_new_variables(events_formatted)
+dim_at_bred <- add_new_variables(events_formatted)
 ```
 
 ### Part 2 - Summarize data
