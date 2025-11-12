@@ -131,7 +131,6 @@ animals |>
   labs(title = "Age left by breed",
        caption = "red line = overall mean; purple line = overall median")
   
-
 animals |> 
   filter(age_left>365 & breed != "_") |> 
   ggplot (mapping = aes(x = age_enrolled, y = age_left))+
@@ -143,7 +142,6 @@ animals |>
   geom_point()+
   labs(title = "Age left by birth day, grouped by breed"
        )
-
 
 ```
 
