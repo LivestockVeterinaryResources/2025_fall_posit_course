@@ -2,8 +2,11 @@
 title: Read and Visualize
 date: "`r Sys.Date()`"
 embed-resources: true
-
+execute:
+  echo: true
+server: shiny
 ---
+
 
 ```{r}
 #| label: setup
@@ -15,7 +18,7 @@ library(tidyverse) #this includes many packages and is the main package used in 
 library(arrow) #this package handles parquet files
 library(skimr) #this is particularly helpful when looking at new data or finding NA values
 library(waldo) #we use this to create answer keys for these exercises
-
+library(shiny)
 
 #add some extra functions
 source('data_milestones/fxn_floor_dates.R')
@@ -109,9 +112,18 @@ Work in the code chunk below. Save the result as `dim_at_bred`. We will use the 
 ```{r}
 #| label: recreation-summary
 #
-dim_at_bred<-events_formatted%>%
+
+
+check_data<-events_formatted%>%
   filter(event %in% 'BRED1')%>%
-    filter(date_event>(max(date_event)-(365*3)))%>%
+  filter(date_event>(max(date_event)-(365*3)))%>%
+  select(id_animal, event, location_event, lact_group, floordate_month)%>%
+  filter(floordate_month %in% lubridate::ymd('2025-10-01'))
+
+dim_at_bred<-events_formatted%>%
+  #filter(id_animal %in% get_example_cows)%>% #filter data to a small set of cows for testing
+  filter(event %in% 'BRED1')%>%
+  filter(date_event>(max(date_event)-(365*3)))%>%
   group_by(event, location_event, lact_group, floordate_month)%>%
   summarize(mean = mean(dim_event),
             sd = sd(dim_event),
@@ -164,4 +176,56 @@ Using the code chunk below, investigate a research question about this data, usi
 
 ```{r}
 
+find_peaks<-dim_at_bred%>%
+  filter(q97>(mean+(sd*3.8)))
+
+df_peaks<-events_formatted%>%
+  filter(event %in% 'BRED1')%>%
+  filter(date_event>(max(date_event)-(365*3)))%>%
+  filter(floordate_month %in% find_peaks$floordate_month)%>%
+  left_join(dim_at_bred)%>%
+  mutate(peak_point = case_when(
+    dim_event>q97~'Peak', 
+    TRUE~'OK'
+  ))
+
+
+  
+
 ```
+
+```{r}
+
+
+
+ggplot(df_peaks)+
+  geom_point(aes(x = floordate_month, y = dim_event, color = peak_point), 
+             position = position_jitter())+
+  geom_hline(data = dim_at_bred%>%
+  filter(floordate_month %in% find_peaks$floordate_month), 
+             aes(yintercept = q97))+
+  facet_wrap(lact_group~., scales = 'free')+
+  scale_color_manual(values = c('grey30', 'red'))
+
+```
+
+```{r}
+quantile(x <- rnorm(1001)) # Extremes & Quartiles by default
+quantile(x,  probs = c(0.1, 0.5, 1, 2, 5, 10, 50, NA)/100)
+
+### Compare different types
+quantAll <- function(x, prob, ...)
+  t(vapply(1:9, function(typ) quantile(x, probs = prob, type = typ, ...),
+           quantile(x, prob, type=1, ...)))
+p <- c(0.1, 0.5, 1, 2, 5, 10, 50)/100
+signif(quantAll(x, p), 4)
+
+## 0% and 100% are equal to min(), max() for all types:
+stopifnot(t(quantAll(x, prob=0:1)) == range(x))
+
+## for complex numbers:
+z <- complex(real = x, imaginary = -10*x)
+signif(quantAll(z, p), 4)
+```
+
+
