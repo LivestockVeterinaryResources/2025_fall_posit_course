@@ -10,7 +10,7 @@ embed-resources: true
 #| include: false
 knitr::opts_chunk$set(echo = TRUE)
 
-# This chunck is already finished for you, you don't need to modify anything here
+# This chunk is already finished for you, you don't need to modify anything here
 library(tidyverse) #this includes many packages and is the main package used in nearly all data wrangling
 library(arrow) #this package handles parquet files
 library(skimr) #this is particularly helpful when looking at new data or finding NA values
@@ -35,8 +35,8 @@ Before you begin, you will need to import your data set. Use the code chunk belo
 ```{r}
 #| label: recreation-import
 
-#add code to read in the events file here
-
+events_formatted <- read_parquet("../data/intermediate_files/events_formatted.parquet") |> 
+  add_new_variables()
 
 ```
 
@@ -108,6 +108,25 @@ Work in the code chunk below. Save the result as `dim_at_bred`. We will use the 
 ```{r}
 #| label: recreation-summary
 #
+dim_at_bred <- events_formatted |> 
+  filter(event == "BRED1" ) |> 
+  # mutate(year = year(as.Date(floordate_month))) |>
+  #          filter (year >= (max(year, na.rm = TRUE)-3)) |>
+  filter(date_event >= max(date_event)-(365*3)) |> 
+  group_by(event, location_event, lact_group, floordate_month) |> 
+  summarize(
+  mean = mean(dim_event, na.rm = TRUE),
+  sd = sd(dim_event, na.rm = TRUE),
+  median = median(dim_event, na.rm = TRUE),
+  min = min(dim_event, na.rm = TRUE),
+  max = max(dim_event, na.rm = TRUE),
+  q97 = quantile(dim_event, probs = 0.97, na.rm = TRUE),
+  n = n()
+  ) |> 
+
+ungroup()
+
+
 
 
 
