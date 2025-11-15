@@ -127,10 +127,6 @@ dim_at_bred <- events_formatted |>
 ungroup()
 
 
-
-
-
-
 ```
 
 Run the following code chunk to test whether you have the same answer as the solution:
@@ -156,8 +152,41 @@ Use the code chunk below to create the plot above. Hint: if your geom_smooth lin
 ```{r}
 #| label: recreation-plot
 
+  ggplot(dim_at_bred, mapping = aes(floordate_month,
+                                    q97,
+                                    color = lact_group)) +
+  geom_point()+
+  geom_smooth(mapping = aes(fill = lact_group), alpha = 0.3)+
+  facet_wrap(facet = vars(lact_group, location_event), scales = "free_y")
+  
+```
+
+I created the graphs using geom_smooth but it was not "capturing" all the points in the scatter plot. Asked GAI to help me make that work and it suggested using "span" to make the line "wigglier" (R default is span = 0.75 which smooths out the curve). Code below.
+
+```{r}
+  ggplot(dim_at_bred, mapping = aes(floordate_month,
+                                    q97,
+                                    color = lact_group)) +
+  geom_point(size = 1)+
+  geom_smooth(mapping = aes(fill = lact_group), alpha = 0.3, span = 0.2)+
+  facet_wrap(facet = vars(lact_group, location_event), scales = "free_y")
 
 ```
+
+Just playing with using a different color pallet:
+```{r}
+  ggplot(dim_at_bred, mapping = aes(floordate_month,
+                                    q97,
+                                    color = lact_group)) +
+  geom_point(size = 1)+
+  geom_smooth(mapping = aes(fill = lact_group), alpha = 0.3, span = 0.2)+
+  facet_wrap(facet = vars(lact_group, location_event), scales = "free_y")+
+  scale_color_viridis_d(option = "turbo")+
+  scale_fill_viridis_d(option = "turbo")
+
+```
+
+
 
 ## Extension
 
