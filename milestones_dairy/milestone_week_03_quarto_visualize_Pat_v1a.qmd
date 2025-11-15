@@ -148,8 +148,8 @@ Use the code chunk below to create the plot above. Hint: if your geom_smooth lin
 dim_at_bred |> 
   ggplot(aes(floordate_month, q97, color = lact_group, fill = lact_group)) + 
     geom_point(size = 0.7) + 
-    facet_wrap(vars(lact_group), scales = "free") +
-  geom_smooth(span = 0.25, alpha = 0.2) 
+    facet_wrap(vars(lact_group, location_event), scales = "free") +
+  geom_smooth(span = 0.25, alpha = 0.3) 
 
 ```
 
