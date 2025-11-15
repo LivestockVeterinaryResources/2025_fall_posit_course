@@ -197,7 +197,7 @@ ggplot(aes(x=floordate_month,y=Conception_Rate)) +
   )
 
 CR_AVG <- bred1_result |>
-  group_by(lact_group) |>
+  group_by(lact_group,) |>
   summarize(mean_CR = mean(Conception_Rate, na.rm = TRUE))
 
 bred1_result |>
