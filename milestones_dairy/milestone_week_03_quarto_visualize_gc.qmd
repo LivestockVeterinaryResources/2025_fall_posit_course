@@ -207,8 +207,9 @@ dim_lame <- events_formatted %>%
            lubridate::years(1)
   ) %>%
   filter(protocols %in% extension$protocols[1:4]) %>%
-  select(location_event, lact_group, protocols, dim_event, date_event) |> 
-  arrange(location_event, protocols)
+  select(location_event, lact_group, protocols, dim_event, date_event) 
+
+dim_lame
 
 
 ```
@@ -218,6 +219,9 @@ dim_lame <- events_formatted %>%
 #| label: extension-plot
 
 plot <- dim_lame |> 
+  mutate(protocols = as_factor(protocols),
+         protocols = fct_infreq(protocols)
+          )|>
   ggplot(aes(x = dim_event, fill = protocols)) +
   geom_histogram(position = "dodge", bins = 30) +
   facet_grid(rows = vars(protocols), cols = vars(location_event,
