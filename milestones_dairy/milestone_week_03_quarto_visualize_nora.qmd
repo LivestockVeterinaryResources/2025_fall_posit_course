@@ -2,9 +2,6 @@
 title: Read and Visualize
 date: "`r Sys.Date()`"
 embed-resources: true
-execute:
-  echo: true
-server: shiny
 ---
 
 
@@ -194,6 +191,8 @@ df_peaks<-events_formatted%>%
 
 ```
 
+
+
 ```{r}
 
 
@@ -209,23 +208,28 @@ ggplot(df_peaks)+
 
 ```
 
+
 ```{r}
-quantile(x <- rnorm(1001)) # Extremes & Quartiles by default
-quantile(x,  probs = c(0.1, 0.5, 1, 2, 5, 10, 50, NA)/100)
+dim_at_mast<-events_formatted%>%
+  #filter(id_animal %in% get_example_cows)%>% #filter data to a small set of cows for testing
+  filter(event %in% c('MAST1', 'MAST2', 'MAST3', 'MAST4'))%>%
+  filter(date_event>(max(date_event)-(365*3)))%>%
+  group_by(event, location_event, lact_group, floordate_month)%>%
+  summarize(mean = mean(dim_event),
+            sd = sd(dim_event),
+            median = median(dim_event),
+            min = min(dim_event),
+            max = max(dim_event),
+            q97 = quantile(dim_event, probs = 0.97),
+            n = sum(n())
+            )%>%
+  ungroup()
 
-### Compare different types
-quantAll <- function(x, prob, ...)
-  t(vapply(1:9, function(typ) quantile(x, probs = prob, type = typ, ...),
-           quantile(x, prob, type=1, ...)))
-p <- c(0.1, 0.5, 1, 2, 5, 10, 50)/100
-signif(quantAll(x, p), 4)
+ggplot(dim_at_mast)+
+  geom_point(aes(x = floordate_month, y = q97, color = lact_group, fill = lact_group), size = .5)+
+  geom_smooth(aes(x = floordate_month, y = q97, color = lact_group, fill = lact_group), alpha = .2, span = .2)+
+  facet_wrap(event~., scales = 'free')
 
-## 0% and 100% are equal to min(), max() for all types:
-stopifnot(t(quantAll(x, prob=0:1)) == range(x))
 
-## for complex numbers:
-z <- complex(real = x, imaginary = -10*x)
-signif(quantAll(z, p), 4)
 ```
-
 
