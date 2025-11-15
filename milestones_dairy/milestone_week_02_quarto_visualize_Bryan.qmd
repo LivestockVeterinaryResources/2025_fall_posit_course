@@ -69,7 +69,8 @@ age_left_hist <-
 ggplot(animals_1yr, aes(x = age_left)) +
   geom_histogram(
     fill = "gray",
-    color = "red",)
+    color = "red",
+    linewidth = 1)
 
 age_left_hist
 
@@ -80,7 +81,7 @@ ggplot(animals_1yr, aes(x = age_left)) +
     color = "white",) +
 labs(title="Histogram of Removal Age", x="Removal Age", y="Count of Cows")
 
-age_left_hist_2
+age_left_hist_
 
 
 
@@ -130,8 +131,10 @@ age_left_hist_breed_1
 
 ## Box & Whisker
 ggplot(animals_1yr_breed, aes(x = age_left, y = breed)) +
-  geom_boxplot(fill = "gray80", color = "black") +
-  geom_point(color="blue")+
+    geom_jitter(color="blue", alpha=0.4,size=1)+
+  geom_boxplot(fill = "gray", color = "black", alpha=0.7 
+              # outlier.color=NA 
+              )+
 labs(title = "Age Left by Breed",
        x = "Removal Age",
        y = "Breed")
