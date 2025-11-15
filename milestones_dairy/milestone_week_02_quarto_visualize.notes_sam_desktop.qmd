@@ -1,0 +1,124 @@
+---
+title: Read and Visualize
+format: html
+embed_resources: true
+---
+
+```{r}
+#| label: setup
+#| include: false
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load your packages here
+
+library(tidyverse) #this includes many packages and is the main package used in nearly all data wrangling
+library(arrow) #this package handles parquet files
+library(skimr) #this is particularly helpful when looking at new data or finding NA values
+library(waldo) #we use this to create answer keys for these exercises
+
+
+```
+
+## Read and Visualize
+
+In this milestone, you'll use ggplot2 to visualize the distribution of age_left for a subset of the data. But before you begin, you'll need to import the animals data set. Unlike with Milestone 1, the animals data set has not been pre-loaded for you to use in R.
+
+
+## Recreation
+
+### Part 1 - Import
+
+In the code chunk below, use a command from the arrow package to read in the animals data set.
+
+* The animals data set lives in the file `animals.parquet` (think of parquet as just another file extension like .csv, or .doc), which is stored in the `data/intermediate_files` folder in your working directory.  However, this quarto document lives in a folder below the working directory, so when you call the file path you need to use "../" at the beginning of the path to tell it to look for the path beginning one level higher than where this quarto document is stored. 
+
+* Save the data set as an object in your environment named `animals`.
+
+
+```{r}
+#| label: recreation-import
+#hint the function to read in a parquet file is the same as the code to read a csv file except replace 'csv' with 'parquet'
+
+
+animals <-(read_parquet(("../data/intermediate_files/animals.parquet")))
+
+
+```
+
+### Part 2 - Visualize
+
+Run the code chunk below to see a plot. Your task is to recreate this plot. 
+
+
+```{r}
+#| label: recreate-this
+#| message: false
+
+knitr::include_graphics("images/milestone02.png")
+```
+
+Use `ggplot()` in the chunk below to re-create the plot above. Before plotting, you will first need to filter your data set to only include observations from cattle where age_left is more than 1 year.
+
+
+```{r}
+#| label: recreation-visualize
+#| 
+#animals_1yr <- (animals %>% filter(age_left>365))
+
+
+#ggplot(data=animals_1yr, mapping = aes(x=age_left, fill=breed)) +geom_histogram(color="gray")
+
+#animals %>% 
+ # filter(age_left >365 & breed != "-") %>% 
+ # ggplot(mapping = aes(x=age_left, fill=breed)) +
+ #        geom_histogram(color="gray") +
+ # labs(title="Luciano's Graph")
+
+#using a pipe (like he did here) lets you edit the data without making sub-data sets, but you can't see it 
+#court_cartesian zooms your data to fit the range, the limit function limits where your data will go to - so cuts off whatever isn't inside the range 
+#a cool thing to do here is you can put other things on it, so like if you want reference ranges or something you can have those in there as horizontal lines 
+#order matters when layering- your first listed graph is the bottom in the stck
+#if you set things equal to =NA then it won't include them, so like if you want outliers to not show up you can put outlier=NA 
+
+#Brian's Graph
+
+## Box & Whisker
+#ggplot(animals_1yr_breed, aes(x = age_left, y = breed)) +
+ #   geom_jitter(color="blue", alpha=0.4,size=1)+
+ # geom_boxplot(fill = "gray", color = "black", alpha=0.7 
+              # outlier.color=NA 
+#              )+
+#labs(title = "Age Left by Breed",
+#       x = "Removal Age",
+ #      y = "Breed")
+
+#You can call different data sets in one ggplot, so if you have your main dataset at the top but then add a new sub-plot and say data= at the beginning then it'll pull from that instead 
+```
+
+
+
+
+## Extension
+
+Using the code chunk below, investigate a research question about this data, using the visualization skills you learned this week. Some ideas:
+
+1. How does the distribution of age_left differ between breeds? Consider exploring these distributions with other geoms.
+2. What relationships do you see between age_left and other variables of interest in the data set?
+3. [any other research question of interest]
+
+Alternately, working with a data set of your own, complete the following: 
+
+1. Read in your data
+2. Filter your data using a logical test/condition 
+3. Graph this data subset using at least one geom 
+
+
+
+```{r}
+#| label: extension
+
+
+
+
+```
+
