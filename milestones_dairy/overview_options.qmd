@@ -1,5 +1,5 @@
 ---
-title: Read and Visualize
+title: Overview Options
 format: 
  html:
    embed-resources: true
@@ -14,7 +14,7 @@ execute:
 ```{r}
 #| label: setup
 #| include: false
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
 # Load your packages here
 
@@ -26,20 +26,43 @@ library(waldo) #we use this to create answer keys for these exercises
 
 ```
 
-## Read and Visualize
 
-In this milestone, you'll use ggplot2 to visualize the distribution of age_left for a subset of the data. But before you begin, you'll need to import the animals data set. Unlike with Milestone 1, the animals data set has not been pre-loaded for you to use in R.
+Items presented here are potential additions to the "Overview" shiny app.
+
+```{r}
+get_unique_chars <- function(x) {
+  x %>%
+    # Remove commas
+    gsub(",", "", .) %>%
+    # Split into individual characters
+    strsplit("") %>%
+    # Unlist all characters from all strings
+    unlist() %>%
+    # Remove hyphens or empty values
+    setdiff(c("-", "")) %>%
+    # Keep only unique characters
+    unique() %>%
+    # Collapse into comma-separated string
+    paste(collapse = ",")
+}
+
+factor_other_last <- function(x) {
+  # Convert to character to avoid issues with existing factor levels
+  x_char <- as.character(x)
+  
+  # Get all unique values except "Other"
+  other_levels <- setdiff(unique(x_char), "Other")
+  
+  # Create the new levels with "Other" at the end
+  new_levels <- c(other_levels, "Other")
+  
+  # Return factor with correct level order
+  factor(x_char, levels = new_levels)
+}
 
 
-## Recreation
+```
 
-### Part 1 - Import
-
-In the code chunk below, use a command from the arrow package to read in the animals data set.
-
-* The animals data set lives in the file `animals.parquet` (think of parquet as just another file extension like .csv, or .doc), which is stored in the `data/intermediate_files` folder in your working directory.  However, this quarto document lives in a folder below the working directory, so when you call the file path you need to use "../" at the beginning of the path to tell it to look for the path beginning one level higher than where this quarto document is stored. 
-
-* Save the data set as an object in your environment named `animals`.
 
 
 ```{r}
@@ -51,109 +74,8 @@ animals<-read_parquet('../data/intermediate_files/animals.parquet')
 
 ```
 
-### Part 2 - Visualize
-
-Run the code chunk below to see a plot. Your task is to recreate this plot. 
 
 
-```{r}
-#| label: recreate-this
-#| message: false
-
-knitr::include_graphics("images/milestone02.png")
-```
-
-Use `ggplot()` in the chunk below to re-create the plot above. Before plotting, you will first need to filter your data set to only include observations from cattle where age_left is more than 1 year.
-
-
-```{r}
-#| label: recreation-visualize
-
-ggplot(animals%>%filter(age_left>365))+
-  geom_histogram(aes(x = age_left), color = 'red')+
-  theme(aspect.ratio = 1)
-
-```
-
-
-
-
-## Extension
-
-Using the code chunk below, investigate a research question about this data, using the visualization skills you learned this week. Some ideas:
-
-1. How does the distribution of age_left differ between breeds? Consider exploring these distributions with other geoms.
-2. What relationships do you see between age_left and other variables of interest in the data set?
-3. [any other research question of interest]
-
-Alternately, working with a data set of your own, complete the following: 
-
-1. Read in your data
-2. Filter your data using a logical test/condition 
-3. Graph this data subset using at least one geom 
-
-
-
-## wrangle animals
-
-
-```{r}
-animals2<-animals%>%
-         mutate(outcome = case_when(
-           is.na(date_left)~'active', 
-           is.na(date_sold)>0~'sold', 
-           is.na(date_died)>0~'died',
-           TRUE~'error'))%>%
-  mutate(year_born = floor_date(date_birth, unit = 'year'))%>%
-  mutate(left_as_calf = age_left<365)
-
-```
-
-## plot animals
-
-Facets are by whether the animal left as a calf (TRUE or FALSE), and what was reason for leaving (died or sold)
-
-```{r}
-colors_outcome<-c("active" = 'green',  "died" = 'red',   "error" = 'orange',  "sold" = 'blue' )
-
-ggplot(animals2%>%
-         filter(outcome %in% c('died', 'sold'))%>%
-         filter(!(is.na(left_as_calf))))+
-  geom_point(aes(x = year_born, y = age_left), 
-             position = position_jitter(), 
-             size = .2, 
-             alpha = .2)+
-  geom_boxplot(aes(x = year_born, y = age_left, 
-                   fill = outcome, group = year_born), 
-               alpha = .4, 
-               position = position_dodge2(), 
-               outlier.color = NA)+
-  facet_wrap(outcome~left_as_calf, scales = 'free')+
-  scale_fill_manual(values = colors_outcome)+
-  scale_color_manual(values = colors_outcome)
-
-
-ggplot(animals2%>%
-         filter(outcome %in% c('died', 'sold'))%>%
-         filter(!(is.na(left_as_calf))))+
-  geom_point(aes(x = year_born, y = age_left), 
-             position = position_jitter(), 
-             size = .2, 
-             alpha = .2)+
-  geom_violin(aes(x = year_born, y = age_left, 
-                   fill = outcome, group = year_born), 
-               alpha = .5, scale = 'width')+
-  facet_wrap(outcome~left_as_calf, scales = 'free')+
-  scale_fill_manual(values = colors_outcome)+
-  scale_color_manual(values = colors_outcome)
-
-
-
-```
-
-## Extra Extension
-
-## wrangle outcomes
 
 ```{r}
 #| label: extension
@@ -200,7 +122,6 @@ lact_outcomes<-animal_lacts%>%
                                     levels = c("new lact", "active",   "archived", "sold",  "died")))%>%
   mutate(date_start = lubridate::ymd(year_start))
 
-sort(unique(lact_outcomes$status_at_archive))
 
 test<-animal_lacts%>%
   filter(id_animal %in% '108e618-b6fb-42fe-84de-54f849_21762_08/07/16')
@@ -212,31 +133,83 @@ colors_outcome<-c('Next Lact/Active' ='#018571',  "new lact" = '#018571', "activ
 
 ```
 
+## plot active
+
+```{r}
+active_animals_breed<-animal_lacts%>%
+  filter(status_at_archive %in% 'active')%>%
+  mutate(total_animals = n_distinct(id_animal))%>%
+  group_by(breed, total_animals)%>%
+  summarize(ct = n_distinct(id_animal))%>%
+  ungroup()%>%
+  mutate(pct = ct/total_animals)%>%
+  mutate(breed_simple = case_when(
+    (pct<0.03)~'Other',
+    TRUE~breed
+  ))%>%
+  select(breed, breed_simple, pct)%>%
+  distinct()
+
+list_main_breeds<-active_animals_breed%>%
+  filter(pct>=0.03)%>%
+  pull(breed)
+
+list_other_breeds<-active_animals_breed%>%
+  filter(pct<0.03)%>%
+  pull(breed)%>%
+  get_unique_chars()
+
+```
+
+
+
+
+
+
+```{r}
+active_animals_counts<-animal_lacts%>%
+  filter(status_at_archive %in% 'active')%>%
+  left_join(active_animals_breed)%>%
+  group_by(location_list, breed_simple, lact_group_5)%>%
+  summarize(animal_count = n_distinct(id_animal))%>%
+  ungroup()%>%
+  mutate(breed_simple = factor_other_last(breed_simple))
+
+active_animals_totals<-animal_lacts%>%
+  filter(status_at_archive %in% 'active')%>%
+  left_join(active_animals_breed)%>%
+  group_by(location_list,  lact_group_5)%>%
+  summarize(animal_count = n_distinct(id_animal))%>%
+  ungroup()
+
+ggplot(active_animals_counts)+
+  geom_col(aes(x = lact_group_5, y = animal_count, fill = breed_simple))+
+  geom_text(data = active_animals_totals, 
+            aes(x = lact_group_5, y = animal_count, label = paste0(animal_count)), 
+            vjust = 0, color = 'grey30')+
+  facet_wrap(location_list~.)+
+  theme_bw()+
+  xlab('')+
+  ylab('Number of Animals')+
+  labs(title = 'Active Animal Counts', 
+       caption = paste0('Other breeds include: ', list_other_breeds), 
+       fill = 'Breed')+
+  scale_fill_viridis_d(option = "viridis")
+  
+
+
+```
+
+
 
 ## plot outcomes
 
-### dots
+Overview of how disposible cows are.  
 
-```{r}
-ggplot()+
-  geom_point(data = lact_outcomes, 
-             aes(x = year_start, y = outcome_pct, color = status_at_archive))+
-  facet_grid(status_at_archive~lact_group_5)+
-  theme_bw()+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_color_manual(values = colors_outcome)
-```
-### dots free axis
+### trends - option 1
 
-```{r}
-ggplot(lact_outcomes)+
-  geom_point(aes(x = year_start, y = outcome_pct, color = status_at_archive))+
-  facet_grid(status_at_archive~lact_group_5, scales = 'free_y')+
-  theme_bw()+
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
-  scale_color_manual(values = colors_outcome)
-```
-### trends
+The line is just this farm, but could also display mean across mySYNCH in future.  
+Could add to bi-yearly alerts if way off benchmark.
 
 ```{r}
 
@@ -281,7 +254,9 @@ ggplot(df_plot_outcome_trends)+
        color = '')
   
 ```
-### stacked
+### stacked - option 2
+
+Not my first pick, but visually simpler than faceting status
 
 ```{r}
 ggplot(lact_outcomes%>%filter(!(year_start %in% 'unknown')))+
