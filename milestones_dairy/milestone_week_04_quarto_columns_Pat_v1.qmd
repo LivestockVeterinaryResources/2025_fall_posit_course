@@ -38,14 +38,23 @@ In this milestone, you'll write some of the code that was written for you in mil
 
 ```{r}
 #| label: recreation-import
-#| 
+
+
+cols_to_select <- colnames(solution_columns)
+
 events<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
   filter(event_type %in% 'health',
-         event == "METR" | event == "MAST") 
+         event == "METR" | event == "MAST") |>
+  mutate(floordate_month = floor_date(date_event, 'months')) |>
+  arrange(id_animal, event, date_event) |>
+  fxn_add_event_counts() |>
+  mutate(age_event = date_event - date_birth) |>
+  select(all_of(cols_to_select))
+
+View(events)
 
 
-
-
+# select all the variables below in the order you see them in the solution_columns table in your environment
 ```
 
 ## Check selected columns
