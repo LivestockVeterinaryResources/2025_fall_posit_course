@@ -112,15 +112,18 @@ Work in the code chunk below. Save the result as `dim_at_bred`. We will use the 
 #
 dim_at_bred <- 
 events_formatted %>% 
-  filter(floordate_month > as.Date("2022-10-05" )) %>% 
+  filter(floordate_month > as.Date("2022-10-01")) %>% 
   filter(event == "BRED1") %>% 
-  group_by(location_event,lactation_group,floordate_month) %>% 
+  mutate(dim_bred = (as.numeric(date_event-date_birth))) %>% 
+  group_by(event,location_event,lact_group,floordate_month,dim_bred) %>% 
   summarize(
-    mean = mean(date_event),
-    sd = sd(date_event)
-    
-  )
-
+    mean = mean(dim_event),
+    sd = sd(dim_event),
+    median = median(dim_event),
+    min = min(dim_event),
+    max = max(dim_event),
+    q97 = quantile(dim_event, probs = 0.97))
+dim_at_bred
 
 ```
 
@@ -146,7 +149,14 @@ Use the code chunk below to create the plot above. Hint: if your geom_smooth lin
 
 ```{r}
 #| label: recreation-plot
-
+#| 
+dim_at_bred %>% 
+  ggplot(mapping= aes(x=floordate_month, y=q97, color=lact_group, fill=lact_group)) +
+           geom_point() +
+           geom_smooth(span= 0.2) +
+  facet_wrap(facets = vars(lact_group), scales = "free_y")
+         
+?geom_smooth
 
 ```
 
@@ -156,4 +166,73 @@ Using the code chunk below, investigate a research question about this data, usi
 
 ```{r}
 
+dim_at_heat <- 
+events_formatted %>% 
+  filter(floordate_month > as.Date("2022-10-01")) %>% 
+  filter(lact_group == "Heifer") %>% 
+  filter(event == "HEAT1") %>% 
+  mutate(dim_heat = as.numeric(date_event-date_birth))
+dim_at_heat
+
+
+# summary(
+#    mean = mean(heat_to_bred),
+#     sd = sd(heat_to_bred),
+#     median = median(heat_to_bred),
+#     min = min(heat_to_bred),
+#     max = max(heat_to_bred),
+#     q97 = quantile(heat_to_bred, probs = 0.97))
+
 ```
+
+
+
+
+
+
+```{r}
+# events_formatted %>% 
+#   distinct(event)
+#  mutate(
+#     daysto_heat = as.numeric(date_heat-date_birth),  
+#     daysto_conc = as.numeric(date_concieved), 
+#     days_to_bred = (daysto_heat-daysto_conc)) %>% 
+#    
+#    mean = mean(days_to_bred),
+#     sd = sd(days_to_bred),
+#     median = median(days_to_bred),
+#     min = min(days_to_bred),
+#     max = max(days_to_bred),
+#     q97 = quantile(days_to_bred, probs = 0.97))
+
+
+dim_bred1 <-
+events_formatted %>%
+  filter(floordate_month > as.Date("2022-10-01")) %>%
+  filter(lact_group == "Heifer") %>%
+  filter(event == "BRED1") %>%
+  mutate(bred_date = as.Date(date_event),
+    heat_to_bred = as.numeric(date_heat-bred_date)) 
+dim_bred1
+
+dim_bred1 %>%  
+  filter(floordate_month > as.Date("2022-10-01")) %>% 
+  #filter(event == "BRED1") %>% 
+  #mutate(dim_bred = (as.numeric(date_event-date_birth))) %>% 
+  group_by(location_event,lact_group,floordate_month,heat_to_bred) %>% 
+  summary(
+   mean = mean(heat_to_bred),
+    sd = sd(heat_to_bred),
+    median = median(heat_to_bred),
+    min = min(heat_to_bred),
+    max = max(heat_to_bred),
+    q97 = quantile(heat_to_bred, probs = 0.97))
+
+# new_bred <- dim_bred %>% 
+#   left_join(dim_at_heat, by ="id_animal")
+# new_bred
+
+#joining two df -- just messing around 
+#dim_bred$date_bred <- $value[match(df1$cow_id, df2$cow_id)]
+```
+
