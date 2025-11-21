@@ -39,11 +39,25 @@ In this milestone, you'll write some of the code that was written for you in mil
 ```{r}
 #| label: recreation-import
 #| 
-events<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
-  filter(event_type %in% 'health')
+events_calves<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
+  filter(event_type %in% 'health') |> 
+  filter(event %in% c("NAVEL", "SEPTIC")) |> 
+  mutate(floordate_month = floor_date(date_event, 'months')) |> 
+  arrange(id_animal, event, date_event) |> 
+  fxn_add_event_counts() |> 
+  mutate(age_event = as.numeric(date_event - date_birth)) |> 
+  separate(id_animal, into = c("official_id", "barn_id", "birth_date"), sep = "_" ) |> 
+  mutate(birth_date = as.Date(birth_date, format = "%m/%d/%y")) |> 
+  select(location_event, id_animal_lact, barn_id, birth_date, date_birth, 
+         lact_number, lact_group, dim_event, age_event, floordate_month, event,
+         remark, protocols, locate_lesion, event_type, event_count_lact, event_count_animal, 
+         Remark, remark_numbers1, remark_letters1, remark_remaining_after_letters1, 
+         remark_letters2, protocols_numbers1, protocols_remaining_after_numbers1,
+         protocols_numbers2, date_event)
 
+events_calves
 
-
+# colnames(solution_columns)
 
 ```
 
@@ -54,11 +68,108 @@ events<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
 
 waldo::compare(colnames(events), colnames(solution_columns))
 
+solution_columns
+
 ```
 
 ### Step 2 - Disease and Treatments
 
 Create 2 new variables for your events: Disease and Treatment. Use case_when() and whichever columns you would like to create the best description. Then use graphs, tables, or a combination to describe the timing your selected Disease(s), both over time and according to animal age or dim as appropriate. Show if there has been a change in the treatments used over time.
+
+```{r}
+distinct(events_calves, event)
+distinct(events_calves, remark)
+
+events_calves_formatted <- events |> 
+  rename(
+    Disease = event,
+    Treatment = remark
+  ) |> 
+  mutate(
+    Treatment = gsub("[0-9]", "", Treatment),
+    Treatment = gsub("\\.$", "", Treatment),
+    Treatment = trimws(Treatment)
+  ) |> 
+  mutate(
+    age_group = cut(
+    age_event, 
+    breaks = c(0,60,120,Inf),
+    labels = c("<60", "60-120", ">120"),
+    right = TRUE,
+    include.lowest = TRUE
+    ) 
+  )
+
+# Diseases over time
+disease_over_time <- events_calves_formatted |> 
+  group_by(barn_id, Disease, Treatment, age_event, age_group, floordate_month, event_count_animal) |> 
+  summarise (count = n(), .groups = "drop") # .groups = "drop" does the same thing as ungroup
+  # ungroup()
+
+ggplot(disease_over_time, aes (x = floordate_month, y = count, fill = Treatment)) +
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(facets = vars(Disease))+
+  labs(
+    Title = "Monthly incidence of navel and septic events",
+    x = "Month",
+    y = "Total cases (count)"
+  )
+
+#Disease timing by animal age
+# This will create the graph withour the age_groups
+# ggplot(disease_over_time, aes(x = age_event, fill = Treatment))+
+#   geom_bar()+
+#   facet_wrap(facets = vars(Disease))+
+#   labs(
+#     Title = "Disease timing by animal age",
+#     x = "Age group",
+#     y = "Total cases (count)"
+#   )
+
+
+ggplot(disease_over_time, aes(x = age_group, y = count, fill = Treatment))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(facets = vars(Disease))+
+  labs(
+    Title = "Disease timing by animal age",
+    x = "Age group",
+    y = "Total cases (count)"
+  )
+
+```
+
+This is basically the same as the previous one, but only using the first event of each animals
+```{r}
+first_disease_event <- events_calves_formatted |> 
+  group_by(barn_id, floordate_month) |> 
+  group_by(barn_id) |> 
+  slice(1) |> 
+  ungroup() 
+
+graph_data <- first_disease_event |> 
+  group_by(floordate_month, Disease, Treatment, age_group, barn_id) |> 
+  summarise(count = n()) |> 
+  ungroup()
+
+
+ggplot(graph_data, aes (x = floordate_month, y = count, fill = Treatment)) +
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(facets = vars(Disease))+
+  labs(
+    Title = "Monthly incidence of navel and septic events",
+    x = "Month",
+    y = "Total cases (count)"
+  )
+
+ggplot(graph_data, aes(x = age_group, y = count, fill = Treatment))+
+  geom_bar(stat = "identity", position = "stack")+
+  facet_wrap(facets = vars(Disease))+
+  labs(
+    Title = "Disease timing by animal age",
+    x = "Age group",
+    y = "Total cases (count)"
+  )
+```
 
 Below are a couple example graphics, but yours can be prettier.
 
