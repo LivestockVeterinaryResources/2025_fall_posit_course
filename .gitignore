@@ -129,4 +129,9 @@ step3_create_denominators_lact_dim_season_files
 
 /.quarto/
 
+<<<<<<< HEAD
 **/*.quarto_ipynb
+=======
+# stupid MAC shit
+.DS_Store
+>>>>>>> 86af3a968e82377f0d91dcaaa78a773ff767207c
