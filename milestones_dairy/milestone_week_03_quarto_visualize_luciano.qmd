@@ -164,6 +164,8 @@ Use the code chunk below to create the plot above. Hint: if your geom_smooth lin
 I created the graphs using geom_smooth but it was not "capturing" all the points in the scatter plot. Asked GAI to help me make that work and it suggested using "span" to make the line "wigglier" (R default is span = 0.75 which smooths out the curve). Code below.
 
 ```{r}
+#| label: freestyle recreation-plot
+
   ggplot(dim_at_bred, mapping = aes(floordate_month,
                                     q97,
                                     color = lact_group)) +
