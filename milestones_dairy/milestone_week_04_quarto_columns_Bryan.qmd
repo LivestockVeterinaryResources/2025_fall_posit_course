@@ -42,6 +42,34 @@ In this milestone, you'll write some of the code that was written for you in mil
 events<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
   filter(event_type %in% 'health')
 
+events_OG <- events
+
+events |> 
+  count(event)
+
+events_filtered <-
+events|>
+  filter(lact_number == 0) |> 
+  filter(event %in% c("PNEU" , "SCOURS")) |> 
+  mutate(floordate_month = floor_date(date_event, 'months')) |> 
+  arrange(id_animal, event, date_event) |> 
+  fxn_add_event_counts() |> 
+  mutate(age_event = (date_event - date_birth)) 
+
+solution_columns_names <-
+solution_columns |> 
+  colnames()
+
+
+events_final <- 
+  events_filtered |>
+  select(all_of(solution_columns_names)) |> 
+  relocate(solution_columns_names)
+
+events <- events_final
+
+events_filtered |> 
+  count(event)
 
 
 
@@ -72,6 +100,114 @@ knitr::include_graphics('images/milestone4_disease_by_phase.jpg')
 
 
 
+```
+
+```{r}
+
+
+events |> 
+  count(remark_letters1, sort=TRUE)
+
+events_table <-
+events |> 
+  mutate(
+    Disease = case_when(
+      event == "PNEU"  ~ "Pneumonia",
+      event == "SCOURS" ~ "Diarrhea",
+      TRUE ~ "Other"
+    ), 
+    Treatment = case_when(
+      str_detect(remark_letters1, "RESF") ~ "Resflor",
+      str_detect(remark_letters1, "ZUPR") ~ "Zuprevo",
+      str_detect(remark_letters1, "DIAQ") ~ "Diaque",
+      str_detect(remark_letters1, "Ring") ~ "Lactated Ringers",
+      str_detect(remark_letters1, "Lact") ~ "Lactated Ringers",
+      str_detect(remark_letters1, "DRA") ~ "Draxxin",
+      str_detect(remark_letters1, "VITO") ~ "Vitolyte",
+      str_detect(remark_letters1, "CELM") ~ "CELMA",
+      str_detect(remark_letters1, "ZACT") ~ "Zactran",
+      str_detect(remark_letters1, "BAY") ~ "Baytril",
+      str_detect(remark_letters1, "ELECT") ~ "Electrolytes",
+      str_detect(remark_letters1, "SMZ") ~ "SMZ",
+    TRUE ~ "Other"
+    ),
+    Age_Group = case_when(
+      age_event <= 15 ~ "0–15 days",
+      age_event <= 30 ~ "16–30 days",
+      age_event <= 45 ~ "31–45 days",
+      age_event <= 60 ~ "46–60 days",
+      age_event <= 90 ~ "61–90 days",
+      age_event <= 120 ~ "91–120 days",
+      age_event > 120 ~ ">120 days",
+      TRUE ~ NA_character_
+    ), 
+    Year = year(date_event))
+    
+events_table |> 
+  count(Treatment, sort=TRUE)
+
+events_table |> 
+  count(Age_Group, sort=TRUE)
+
+```
+
+```{r}
+
+events_table |> 
+ggplot( aes(x = age_event, fill = Disease)) +
+  geom_histogram(binwidth = 5, alpha = 0.7, position = "identity") +
+  labs(
+    title = "Age at Disease Event (days)", 
+    x = "Age (days)", y = "Count")
+
+
+events_table |> 
+
+ggplot( aes(x = age_event)) +
+  geom_histogram(binwidth = 5, alpha = 0.7, fill="BLUE") +
+  facet_wrap(vars(Disease),scales="free")
+  labs(
+    title = "Age at Disease Event (days)", 
+    x = "Age (days)", y = "Count")
+  
+  events_table |> 
+  filter( (Disease == "Diarrhea"  & age_event < 50) |
+          (Disease == "Pneumonia" & age_event < 300)) |> 
+ggplot( aes(x = age_event, fill= Treatment)) +
+  geom_histogram(binwidth = 5, alpha = 0.7) +
+  facet_wrap(vars(Disease),scales="free")
+  labs(
+    title = "Age at Disease Event (days)", 
+    x = "Age (days)", y = "Count")
+  
+   events_table |> 
+  filter( (Disease == "Diarrhea"  & age_event < 50) |
+          (Disease == "Pneumonia" & age_event < 300)) |> 
+ggplot( aes(x = age_event, fill= Age_Group)) +
+  geom_histogram(binwidth = 1, alpha = 0.7) +
+  facet_wrap(vars(Disease),scales="free")
+  labs(
+    title = "Age at Disease Event (days)", 
+    x = "Age (days)", y = "Count")
+  
+  
+  events_table |> 
+  filter( (Disease == "Diarrhea"  & age_event < 50) |
+          (Disease == "Pneumonia" & age_event < 300)) |> 
+  ggplot( aes(x = Year, fill = Age_Group)) +
+  geom_bar(position = "stack") +
+  facet_wrap(~ Disease, scales = "free_y") +
+  labs(
+    title = "Events by Year and Age Group",
+    x = "Year of Event",
+    y = "Number of Events",
+    fill = "Age Group"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 ```
 
 ### Extension Options
