@@ -37,6 +37,8 @@ Before you begin, you will need to import your data set. Use the code chunk belo
 
 #add code to read in the events file here
 
+events_formatted<-read_parquet('../data/intermediate_files/events_formatted.parquet')|> 
+  add_new_variables()
 
 ```
 
@@ -108,7 +110,26 @@ Work in the code chunk below. Save the result as `dim_at_bred`. We will use the 
 ```{r}
 #| label: recreation-summary
 #
-
+dim_at_bred <- events_formatted %>%
+  filter(event == "BRED1") |> 
+  filter(date_event > max(date_event) - 
+          # I used this to account for leap years.
+         lubridate::years(3)
+         # to get same answers as solution use
+         # 365*3
+         ) %>%
+  group_by(event, location_event, lact_group, floordate_month) %>%
+  summarize(
+    mean = mean(dim_event, na.rm = TRUE),
+    sd = sd(dim_event, na.rm = TRUE),
+    median = median(dim_event, na.rm = TRUE),
+    min = min(dim_event, na.rm = TRUE),
+    max = max(dim_event, na.rm = TRUE),
+    q97 = quantile(dim_event, probs = 0.97, na.rm = TRUE),
+    n = n()
+    # .groups = 'drop'
+  ) %>%
+  ungroup()
 
 
 
