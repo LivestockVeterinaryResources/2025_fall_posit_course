@@ -39,7 +39,7 @@ In this milestone, you'll write some of the code that was written for you in mil
 ```{r}
 #| label: recreation-import
 #| 
-events_calves<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
+events_calves <-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
   filter(event_type %in% 'health') |> 
   filter(event %in% c("NAVEL", "SEPTIC")) |> 
   mutate(floordate_month = floor_date(date_event, 'months')) |> 
