@@ -14,6 +14,7 @@ library(tidyverse) #this includes many packages and is the main package used in 
 library(arrow) #this package handles parquet files
 library(skimr) #this is particularly helpful when looking at new data or finding NA values
 library(waldo) #we use this to create answer keys for these exercises
+library(RColorBrewer) #this makes the pretty colors 
 
 solution_columns<-read_rds('data_milestones/solutions_week4_check_columns.rds')
 
@@ -40,8 +41,17 @@ In this milestone, you'll write some of the code that was written for you in mil
 #| label: recreation-import
 #| 
 events<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
-  filter(event_type %in% 'health')
-
+  filter(event_type %in% 'health') %>% 
+  filter(event %in% c("LAME")) %>% 
+  mutate(floordate_month = floor_date(date_event, "month")) %>% 
+  arrange(id_animal, event, date_event) %>% 
+  fxn_add_event_counts() %>% 
+  mutate(age_event = as.numeric(date_event-date_birth)) %>% 
+  select(location_event, id_animal, id_animal_lact, id, date_birth, lact_number, lact_group, dim_event, age_event, floordate_month, event, remark, protocols, locate_lesion, event_type, date_event, event_count_lact, event_count_animal, Remark, remark_numbers1,remark_letters1, remark_remaining_after_numbers1, remark_remaining_after_letters1, remark_numbers2, remark_letters2, Protocols, protocols_numbers1, protocols_letters1, protocols_remaining_after_numbers1, protocols_remaining_after_letters1, protocols_numbers2, protocols_letters2) 
+# 
+# %>%
+#   group_by(lact_group)
+  
 
 
 
@@ -68,8 +78,42 @@ Below are a couple example graphics, but yours can be prettier.
 
 
 knitr::include_graphics('images/milestone4_disease_over_time.jpg')
-knitr::include_graphics('images/milestone4_disease_by_phase.jpg')
+knitr::include_graphics('images/milestone4_disease_by_phase.jpg') 
 
+trim_events <- 
+  events %>% 
+  group_by(lact_group) %>% 
+  mutate(trim_group = 
+           case_when(event_count_lact == 1 ~ "1", 
+                     event_count_lact >= 2 ~ "2+")) %>% 
+   mutate(
+    trim_need =
+    case_when(protocols == "Trim Only" ~ "Routine", 
+              protocols == "Abces\\Block" ~ "Abscess", 
+              protocols == "Ulcer/Block" ~ "Ulcer",
+              protocols == "Hairy Wart" ~ "Wart",
+              protocols == "Foot Rot/Exce" ~ "Footrot"
+            )) %>% 
+  select(lact_group, dim_event, floordate_month, remark, protocols, locate_lesion, date_event, trim_need, event_count_lact, event_count_animal, trim_group) 
+
+# %>% 
+  # filter(trim_need != "Routine")
+  
+  
+trim_events %>%
+  ggplot(aes(x = dim_event, fill = trim_need)) +
+  geom_histogram(bins = 10, color = "black") +
+  facet_wrap(vars(trim_group),
+             scale = "free_y",
+     labeller = labeller(trim_group = c(
+       "1" = "1 Trim",
+       "2+" = "2+ Trims"
+     ))) +
+  labs(
+    title = "DIM at Lame",
+    x = "DIM at Lame (days)",
+    y = "Count") +
+  scale_fill_brewer(palette = "Set2")
 
 
 ```
@@ -79,3 +123,69 @@ knitr::include_graphics('images/milestone4_disease_by_phase.jpg')
 1)  Improve your description for your chosen events
 2)  Choose a new disease
 3)  choose to add multiple farms (either your own data or other example herds)
+
+```{r}
+# 
+# trim_events %>% 
+# count(event_count_lact, sort=TRUE) %>% 
+#   slice_head(n=8) %>% 
+#   pull(event_count_lact)
+trim_events %>% 
+  filter(protocols != "BLANK_UNKNOWN") %>% 
+count(protocols, sort= TRUE)
+
+
+```
+
+```{r}
+
+trim_events <- 
+  events %>% 
+  group_by(lact_group) %>% 
+  mutate(trim_group = 
+           case_when(event_count_lact == 1 ~ "1", 
+                     event_count_lact == 2 ~ "2",
+                     event_count_lact >= 3 ~ "3+")) %>% 
+   mutate(
+    trim_need =
+    case_when(protocols == "Trim Only" ~ "Routine", 
+              protocols == "Abces\\Block" ~ "Abscess", 
+              protocols == "Ulcer/Block" ~ "Ulcer",
+              protocols == "Hairy Wart" ~ "Wart",
+              protocols == "Foot Rot/Exce" ~ "Footrot"
+            )) %>% 
+  select(lact_group, dim_event, floordate_month, remark, protocols, locate_lesion, date_event, trim_need, event_count_lact, event_count_animal, trim_group, event)  %>% 
+  filter(trim_need != "Routine")
+
+trim_events %>%
+  ggplot(aes(x = dim_event, fill = trim_need)) +
+  geom_histogram(bins = 10, color = "black") +
+  facet_wrap(vars(trim_group),
+             scale = "free_y",
+     labeller = labeller(trim_group = c(
+       "1" = "1 Trim",
+       "2" = "2 Trims",
+       "3+" = "3+ Trims"
+     ))) +
+  labs(
+    title = "DIM at Lame",
+    x = "DIM at Lame (days)",
+    y = "Count") +
+  scale_fill_brewer(palette = "Set3")
+
+```
+
+```{r}
+
+trim_events %>% 
+  ggplot(aes(x = dim_event, y=floordate_month, fill = lact_group, bins= 10)) +
+  geom_tile() 
+  # +
+  # labs(
+  #   title = "DIM at Lame",
+  #   x = "DIM at Lame (days)",
+  #   y = "Count") +
+  # scale_fill_brewer(palette = "Set3")
+
+```
+
