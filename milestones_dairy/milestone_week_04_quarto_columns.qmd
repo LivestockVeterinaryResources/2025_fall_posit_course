@@ -178,7 +178,7 @@ trim_events %>%
 ```{r}
 
 trim_events %>% 
-  ggplot(aes(x = dim_event, y=floordate_month, fill = lact_group, bins= 10)) +
+  ggplot(aes(x = floordate_month, dim_event, fill = lact_group, bins= 10)) +
   geom_tile() 
   # +
   # labs(
@@ -186,6 +186,8 @@ trim_events %>%
   #   x = "DIM at Lame (days)",
   #   y = "Count") +
   # scale_fill_brewer(palette = "Set3")
+
+## you can set categorical variables to re-order by a numeric variable inside the ggplot() - reorder = "variable" I think 
 
 ```
 
