@@ -1,0 +1,411 @@
+---
+title: "Milestone 5 - Denominators (Tidy and Join)"
+format: html
+date: "`r Sys.Date()`"
+embed-resources: true
+---
+
+```{r}
+library(tidyverse)
+library(quarto)
+library(arrow)
+library(waldo)
+
+solution<-read_rds('data_milestones/solutions_week_05_pivotlonger.rds')
+
+```
+
+## Denominators
+
+Now that you can tidy data, pivot longer or wider, and then join tables to others, you are both unstoppable . . . and dangerous.
+
+In this lesson we will explore one method of creating denominators.
+
+The chunk below calls a script which will create a standard denominator file and save it in \`data/intermediate_files\` folder named `denominator_by_lact_group_time_periodXXX.parquet`.
+
+The "XXX" in the file name represents the number of days within each time period used to denominator calculations.
+
+When you run the chunk below it will - generate a denominator file with a time period of 365 days - read that file into your environment and name it deno365. (it will take a bit of time to run)
+
+```{r initial denominator generation, message==FALSE}
+
+quarto::quarto_render(
+  input = "../step3_denominators_by_lactation_group.qmd",
+  execute_dir = dirname("../step3_denominators_by_lactation_group.qmd"),
+  execute_params = list(
+    denominator_granularity = 365,
+    cut_by_days = 30,
+    top_cut = 400,
+    top_cut_hfr = 500
+  )
+)
+
+```
+
+Run this code chunk to read in the denominator file you just created.
+
+```{r}
+deno365<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time_period365.parquet')
+
+```
+
+## Part 1 - Explore lactation group denominators
+
+There are multiple denominator types to choose from in this file. Write some code in the chunk below to list the names of the different values in the deno_type variable
+
+```{r}
+#| label: deno365 unique entries
+
+
+deno365
+unique(deno365[["Lactation Group"]])
+unique(deno365[["deno_type"]])
+```
+
+You will notice that there are 2 basic types:
+
+-   lactation groups (begin with "lact\_")
+-   day of phase plus lactation group (begin with "dop\_")
+
+In order to explore these options further, write some code in the chunk below that pivots the data so that you can graphically compare metric types more easily.
+
+You should pivot the columns: "ct_animal_time_periods", "ct_animals" , "ct_animal_lactations" Name your new pivoted dataframe `deno365_long`. Name your new variables: `metric` and `ct`
+
+Run this chunk to see an example of what your final table should look like
+
+```{r}
+head(solution)
+```
+
+```{r}
+deno365_long <- deno365 %>%
+  pivot_longer(
+    cols = c(ct_animal_lactations, ct_animals, ct_animal_time_periods),
+    names_to = "metric",
+    values_to = "ct"
+  )
+
+# deno365_long <- deno365 %>% 
+#   pivot_longer(
+#     cols = starts_with("ct_"),
+#     names_to = "metric",
+#     values_to = "ct"
+#   )
+
+deno365_long
+
+write_csv(solution,"excel_excuses.csv")
+```
+
+Run the chunk below to see if your solution matches
+
+```{r}
+waldo::compare(solution, deno365_long)
+
+```
+
+Part 2 - Compare denominators
+
+Finding the right denominator is often more challenging than creating numerators.\
+Run the chunk below to see a graphical comparison of the metrics available in deno_type `lact_basic`
+
+```{r}
+#### plot lact group counts
+
+ggplot()+
+  geom_point(data = deno365_long%>%filter(deno_type %in% 'lact_basic'),
+             aes(x = date_time_period_start, y = ct, color = metric, fill = metric, shape = metric), 
+             size = 3, alpha = .3, stroke = 2)+
+  
+  facet_grid(location_lact_list~`Lactation Group`, scales = 'free_y')+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = 'top')+
+  labs(fill = '', 
+       color = '', 
+       shape = '',
+       title = 'Denominator Options')+
+  scale_shape_manual(values = c(21,22,24,25))
+
+```
+
+In order to get more familiar with the denominator creation function you can read the markdown report in the reports folder and/or look at the code in the denominator `step3_denominators_by_lactation_group.qmd` file.
+
+Modify the code below (***change the numeric values for the execute_params***) to create different time periods or day of phase cut points. Then describe the new denominator you generated using a graph, table or both.
+
+```{r}
+
+quarto::quarto_render(
+  input = "../step3_denominators_by_lactation_group.qmd",
+  execute_dir = dirname("../step3_denominators_by_lactation_group.qmd"),
+  execute_params = list(
+    denominator_granularity = 30, #modify this number to create time periods of different lengths (i.e. try  21 or 90 days)
+      cut_by_days = 30, #this controls the number of days of phase (dim for cows, age for heifers) in each category.  A lower number will create more categories, a higher number will create fewer
+      top_cut = 400, #What is the max DIM you care about? this puts a ceiling on the number of categories so when you have an outlier it doesn't give you too many groups
+      top_cut_hfr = 500 #what is the max days of age you care about in heifers
+    )
+)
+
+ 
+```
+
+The new file you created can be found in the data/intermediate_files folder and will be named using the denominator_granularity that you set.
+
+Here is a template to read in the new file you created.
+
+You need to modify the "XXX" place holder so that it matches the number you put for denominator granularity in the chunk above.
+
+```{r}
+denoNEW<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time_period30.parquet')
+```
+
+Use this code chunk to explore the new denominator
+
+```{r}
+#| label: denoNEW_long exploration
+# =================================================================================
+# denoNEW_long exploration
+# =================================================================================
+
+# pivot_longer the denoNEW(30day) framework
+denoNEW_long <- denoNEW %>%
+  pivot_longer(
+    cols = c(ct_animal_lactations, ct_animals, ct_animal_time_periods),
+    names_to = "metric",
+    values_to = "ct"
+  )
+
+# write_csv(denoNEW_long,"excel_excuses.csv")
+
+# visualize the new dataset, removing the 'Heifer' population from 'Lactation Group'
+
+ggplot()+
+  geom_point(data = deno365_long %>% filter(deno_type %in% 'lact_5+', `Lactation Group` != 'Heifer'), # 'lact_basic'
+             aes(x = date_time_period_start, y = ct, color = metric, fill = metric, shape = metric), 
+             size = 3, alpha = .3, stroke = 2)+
+  
+  facet_grid(location_lact_list~`Lactation Group`, scales = 'free_y')+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = 'top')+
+  labs(fill = '', 
+       color = '', 
+       shape = '',
+       title = 'Denominator Options')+
+  scale_shape_manual(values = c(21,22,24,25))
+
+
+# =================================================================================
+# Bar chart to indicate the number of individuals in each lactational group.
+# =================================================================================
+
+denoNEW_long %>%
+  filter(
+    deno_type == "dop_lact_5+",            # keep only 'dop_lact_5+'
+    `Lactation Group` != "Heifer",         # exclude Heifer
+    date_time_period_start >= 2025,        # only 2025 or later
+    day_of_phase_group == "0 to 29",       # only the entry of the risk period 0 to 29
+    metric == "ct_animals"                 # only ct_animals metric
+  ) %>%
+  ggplot(aes(x = `Lactation Group`, y = ct, fill = `Lactation Group`)) +
+  geom_bar(stat = "identity") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none") +
+  labs(
+    x = "Lactation Group",
+    y = "Count (ct)",
+    title = "ct_animals by Lactation Group (lact_5+, 2025+)"
+  )
+
+
+# =================================================================================
+# Bar chart to examine complete vs. incomplete entries by LGRP. 
+# number of entries is the current plot
+# =================================================================================
+
+denoNEW_long %>%
+  filter(
+    deno_type == "dop_lact_5+",                # keep only lact_5+
+    `Lactation Group` != "Heifer",         # exclude Heifer
+    date_time_period_start >= 2025,         # only 2025 or later
+    day_of_phase_group == "0 to 29",       # only the entry of the risk period 0 to 29
+    metric == "ct_animals"                 # only ct_animals metric
+    # !is.na(dop_complete)
+  ) %>%
+  ggplot(aes(x = `Lactation Group`, y = ct, fill = dop_complete)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "top") +
+  labs(
+    x = "Lactation Group",
+    y = "Count (ct)",
+    fill = "DOP Completion",
+    title = "ct_animals by Lactation Group (lact_5+, 2025+) split by DOP completion"
+  )
+```
+
+
+```{r}
+#| label: animals denominator parquet
+
+
+event_form <- read_parquet('../data/intermediate_files/events_formatted.parquet')
+animals
+
+# =================================================================================
+
+# animal_lact <- read_parquet('../data/intermediate_files/animal_lactations.parquet')
+# animal_lact
+# 
+# unique(event_form[["event"]])  # what are the unique EVENT entries?
+# 
+# event_form %>%  # Enumerate the number of FRESH and MAST entries
+#   filter(event %in% c("FRESH", "MAST")) %>%   # keep only FRESH and MAST
+#   count(event)                                # count entries by event
+
+# =================================================================================
+
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+event_lact <- event_form %>%
+  filter(lact_group_basic != "Heifer",
+         event %in% c("FRESH", "MAST")) %>%
+  mutate(
+    floordate_date = floor_date(date_event, "month"),
+    floordate_mo   = month(date_event, label = TRUE, abbr = FALSE)
+  ) %>%
+  arrange(id_animal, lact_number, event, date_event) %>%
+  select(id_animal, breed, id_animal_lact, date_archived, lact_number,
+         lact_group_basic, lact_group, lact_group_5, event_type, event,
+         remark, protocols, Protocols, date_event, dim_event, locate_lesion,
+         floordate_date, floordate_mo) %>%
+  group_by(id_animal, lact_number) %>%
+  mutate(
+    SEQ = if_else(event == "FRESH", 1L, cumsum(event == "MAST"))
+  ) %>%
+  ungroup()
+
+# Direct incidence calculation
+incidence_summary <- event_lact %>%
+  summarise(
+    n_fresh   = sum(event == "FRESH"),
+    n_mast_30 = sum(event == "MAST" & SEQ == 1 & dim_event <= 30),
+    incidence_rate = n_mast_30 / n_fresh,
+    incidence_pct  = incidence_rate * 100
+  )
+
+
+# =================================================================================
+# Summarise MAST incidence by lact_group_5 and floordate_date
+# =================================================================================
+
+# incidence by lact_group_5 and month
+incidence_summary <- event_lact %>%
+  filter(floordate_date >= as.Date("2023-01-01")) %>%
+  group_by(lact_group_5, floordate_date) %>%
+  summarise(
+    n_fresh   = sum(event == "FRESH"),
+    n_mast_30 = sum(event == "MAST" & SEQ == 1 & dim_event <= 30),
+    incidence_rate = n_mast_30 / n_fresh,
+    incidence_pct  = incidence_rate * 100,
+    .groups = "drop"
+  )
+
+# view the table
+print(incidence_summary)
+
+# Add year column for faceting
+incidence_summary <- incidence_summary %>%
+  mutate(year = year(floordate_date))
+
+ggplot(incidence_summary, aes(x = floordate_date, y = lact_group_5, fill = incidence_pct)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(incidence_pct, 1)), 
+            color = "black", 
+            size = 3, 
+            angle = 90, 
+            vjust = 0.5, 
+            hjust = 0.5) +
+  scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
+  facet_wrap(~ year, scales = "free_x") +   # facet by year, but keep floordate_date on x-axis
+  scale_x_date(date_labels = "%b-%Y", date_breaks = "1 month") +  # show month-year labels
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Month-Year",
+    y = "Lactation Group",
+    title = "Heatmap of Mastitis Incidence (first case ≤ 30 DIM)",
+    subtitle = "Faceted by year, restricted to 2023+"
+  )
+
+
+# =================================================================================
+# Summarise FRESH events by lact_group_5 and month
+# =================================================================================
+
+fresh_grid <- event_lact %>%
+  filter(floordate_date >= as.Date("2023-01-01"),
+         event == "FRESH") %>%
+  group_by(lact_group_5, floordate_date) %>%
+  summarise(
+    n_fresh = n(), .groups = "drop"
+  )
+
+# View the grid table
+print(fresh_grid)
+
+# Plot as a grid heatmap or faceted bar chart
+ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
+  geom_col(position = "dodge") +
+  facet_grid(lact_group_5 ~ .) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    x = "Month-Year",
+    y = "Number of FRESH events",
+    fill = "Lactation Group",
+    title = "FRESH events by lactation group and month"
+  )
+
+
+
+# event_lact %>%
+#   filter(event %in% c("FRESH", "MAST")) %>%   # keep only FRESH and MAST
+#   count(event) 
+# 
+# names(event_lact)
+
+# write_csv(event_lact,"excel_excuses.csv")
+
+```
+
+## Part 2 - Extension
+
+Think about the data you described in milestone 4. Standard denominators like the one above are often not good enough.
+
+Use your new data wrangling skills to create the perfect denominator for your questions about this data.
+
+Options for creating denominators include:
+
+1)  modify the code that creates your denoNEW to create time periods and or day of phase cut points that you want to use for your data in milestone 4.
+
+2)  use your new join skills to join `animal_lactations.parquet` to `animals.parquet` and create your own denominator from scratch that improves your ability to answer a question about your data in milestone 4.
+
+3)  Create a different denominator in a completely different way. (for some questions the best denominator is a subset of events pivoted wider)
+
+NOTE: Denominators can be challenging. If you get stuck:
+
+-   First articulate what you want to do, step by step, in English
+
+-   Then add a blank code chunk for each step
+
+-   Begin filling in code
+
+-   Ask the group for help if you get completely stuck.

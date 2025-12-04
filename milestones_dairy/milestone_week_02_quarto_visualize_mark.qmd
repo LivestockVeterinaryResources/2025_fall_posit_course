@@ -40,8 +40,11 @@ In the code chunk below, use a command from the arrow package to read in the ani
 
 # "C:\GitHub\2025_fall_posit_course\data\intermediate_files\animals.parquet"
 # "C:\GitHub\2025_fall_posit_course\milestones_dairy\milestone_week_02_quarto_visualize_mark.qmd"
-
-
+animals <- read_parquet("../data/intermediate_files/animals.parquet")
+skim(animals)
+animals
+# write_csv(animals,"excel_excuses.csv")
+view(animals)
 
 ```
 
@@ -62,7 +65,28 @@ Use `ggplot()` in the chunk below to re-create the plot above. Before plotting, 
 
 ```{r}
 #| label: recreation-visualize
+animals365 <- animals %>%
+  filter(age_left > 365)
+view(animals365)
+# write_csv(animals365,"excel_excuses.csv")
 
+# Verify removal of instances 365 or less
+# Verify removal of NA entries
+
+#ggplot(animals %>% filter(age_left > 365), mapping = aes(x = age_left)) +
+
+ggplot(animals365, mapping = aes(x = age_left)) +
+  geom_histogram(binwidth = 158, color = "red") +
+  scale_x_continuous(
+    name = "Age Left (days)", 
+      # Change the axis title
+    breaks = seq(0, 5000, by = 500),
+      # Define specific tick mark locations
+    labels = c("0", "500", "1000", "1500", "2000", "2500", "3000", "3500", "4000", "4500", "5000"),
+      # Provide custom labels for breaks
+    limits = c(0, 5000)
+      # Set the minimum and maximum values displayed on the axis
+  )
 
 
 ```
@@ -88,9 +112,71 @@ Alternately, working with a data set of your own, complete the following:
 
 ```{r}
 #| label: extension
+ggplot(data = animals365, mapping = aes(x = date_birth, y = age_left)) +
+  geom_point(color = "lightblue")
 
+# fracture the scatterplot by breed
+ggplot(data = animals365, aes(x = date_left, y = age_left, color = factor(breed))) +
+  geom_point() +
+  scale_color_manual(values = c("H" = "black", "J" = "orange", "A" = "red", "X" = "green"))
 
+# select only the Holstein cattle
+ggplot(
+  animals365 %>% filter(breed == "H"
+    ), aes(x = date_left, y = age_left, color = factor(breed))) +
+  geom_point() +
+  scale_color_manual(values = c("H" = "black", "H,X" = "orange", "A" = "red", "X" = "green"))
 
+# select only the Jersey cattle
+ggplot(
+  animals365 %>% filter(breed == "H,X"
+    ), aes(x = date_left, y = age_left, color = factor(breed))) +
+  geom_point() +
+  scale_color_manual(values = c("H" = "black", "H,X" = "orange", "A" = "red", "X" = "green"))
 
+# select only the Angus cattle
+ggplot(
+  animals365 %>% filter(breed == "A"
+    ), aes(x = date_left, y = age_left, color = factor(breed))) +
+  geom_point() +
+  scale_color_manual(values = c("H" = "black", "H,X" = "orange", "A" = "red", "X" = "green"))
+
+# select only the Cross cattle
+ggplot(
+  animals365 %>% filter(breed == "X"
+    ), aes(x = date_left, y = age_left, color = factor(breed))) +
+  geom_point() +
+  scale_color_manual(values = c("H" = "black", "J" = "orange", "A" = "red", "X" = "green"))
+
+# Basic jitter plot
+ggplot(animals365 %>% filter(breed == "H"), aes(x = date_left, y = age_left)) +
+  geom_jitter() +
+  scale_color_manual(values = c("H" = "black", "J" = "orange", "A" = "red", "X" = "green"))
+
+# Multiple histograms by breed category
+ggplot(animals365, aes(age_left)) +
+  geom_histogram(binwidth = 158, color = "blue", fill = "skyblue") +
+  facet_wrap("breed") +
+  labs(title = "Histograms by Category", x = "Value", y = "Frequency") +
+  theme_minimal()
+
+#Trial Violin Plot
+ggplot(data = animals365, aes(x = date_left, y = age_left, fill = age_left)) +
+  geom_violin(color = "blue", fill = "skyblue") +
+  coord_flip() +
+  labs(title = "Age Left (days)",
+           x = "Date Left",
+           y = "Age Left") +
+      theme_minimal() # Apply a minimal theme
+
+## Box & Whisker
+ggplot(animals365, aes(x = age_left, y = breed)) +
+    geom_jitter(color="blue", alpha=0.4,size=1)+
+  geom_boxplot(fill = "gray", color = "black", alpha=0.7 
+              # outlier.color=NA 
+              )+
+labs(title = "Age Left by Breed",
+       x = "Removal Age",
+       y = "Breed")
 ```
 
