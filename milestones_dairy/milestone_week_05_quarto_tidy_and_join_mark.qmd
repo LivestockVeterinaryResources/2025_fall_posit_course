@@ -78,6 +78,9 @@ head(solution)
 ```
 
 ```{r}
+
+#| label: deno365, pivot_longer to deno365_long
+
 deno365_long <- deno365 %>%
   pivot_longer(
     cols = c(ct_animal_lactations, ct_animals, ct_animal_time_periods),
@@ -100,6 +103,9 @@ write_csv(solution,"excel_excuses.csv")
 Run the chunk below to see if your solution matches
 
 ```{r}
+#| label: waldo::compare
+
+
 waldo::compare(solution, deno365_long)
 
 ```
@@ -110,6 +116,9 @@ Finding the right denominator is often more challenging than creating numerators
 Run the chunk below to see a graphical comparison of the metrics available in deno_type `lact_basic`
 
 ```{r}
+
+#| label: Nora, lact group counts
+#| 
 #### plot lact group counts
 
 ggplot()+
@@ -135,6 +144,8 @@ Modify the code below (***change the numeric values for the execute_params***) t
 
 ```{r}
 
+#| label: quarto_render.  Setting up 30 day cut point
+
 quarto::quarto_render(
   input = "../step3_denominators_by_lactation_group.qmd",
   execute_dir = dirname("../step3_denominators_by_lactation_group.qmd"),
@@ -156,6 +167,8 @@ Here is a template to read in the new file you created.
 You need to modify the "XXX" place holder so that it matches the number you put for denominator granularity in the chunk above.
 
 ```{r}
+#| label: read in the new 30 day parquet file to create denoNEW
+#| 
 denoNEW<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time_period30.parquet')
 ```
 
@@ -163,6 +176,7 @@ Use this code chunk to explore the new denominator
 
 ```{r}
 #| label: denoNEW_long exploration
+#| 
 # =================================================================================
 # denoNEW_long exploration
 # =================================================================================
@@ -178,7 +192,7 @@ denoNEW_long <- denoNEW %>%
 # write_csv(denoNEW_long,"excel_excuses.csv")
 
 # visualize the new dataset, removing the 'Heifer' population from 'Lactation Group'
-
+# replicate the previous graph that Nora created
 ggplot()+
   geom_point(data = deno365_long %>% filter(deno_type %in% 'lact_5+', `Lactation Group` != 'Heifer'), # 'lact_basic'
              aes(x = date_time_period_start, y = ct, color = metric, fill = metric, shape = metric), 
