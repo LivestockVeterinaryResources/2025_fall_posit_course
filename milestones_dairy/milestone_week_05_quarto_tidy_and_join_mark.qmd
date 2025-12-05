@@ -266,7 +266,9 @@ denoNEW_long %>%
 
 
 event_form <- read_parquet('../data/intermediate_files/events_formatted.parquet')
-animals
+
+# write_csv(event_lact,"excel_excuses.csv")
+# unique(event_form[["event"]])
 
 # =================================================================================
 
@@ -280,88 +282,129 @@ animals
 #   count(event)                                # count entries by event
 
 # =================================================================================
+```
+
+
+```{r}
+#| label: Build source health event data frame
 
 library(dplyr)
 library(lubridate)
 library(ggplot2)
 
+# =================================================================================
+# Create data frame 'event_lact' to define fresh cow health dynamics
+# =================================================================================
+
 event_lact <- event_form %>%
+  # Create event_lact to extract fresh cow test events
   filter(lact_group_basic != "Heifer",
-         event %in% c("FRESH", "MAST")) %>%
+         event %in% c("FRESH", "MAST", "METR", "SOLD", "DIED")) %>%
+  # Add floordate Date and Mon
   mutate(
     floordate_date = floor_date(date_event, "month"),
     floordate_mo   = month(date_event, label = TRUE, abbr = FALSE)
   ) %>%
+  # Sort the list by these columns, in this order
   arrange(id_animal, lact_number, event, date_event) %>%
+  # Remove extraneous columns from the data frame
   select(id_animal, breed, id_animal_lact, date_archived, lact_number,
          lact_group_basic, lact_group, lact_group_5, event_type, event,
          remark, protocols, Protocols, date_event, dim_event, locate_lesion,
          floordate_date, floordate_mo) %>%
+  # Group the data by animal ID and LACT to ensure that all entries are grouped together.
   group_by(id_animal, lact_number) %>%
   mutate(
-    SEQ = if_else(event == "FRESH", 1L, cumsum(event == "MAST"))
+    # Column to display the number of the event, i.e. MAST case #3. Sequential sum
+    SEQ  = if_else(event == "FRESH", 1L,
+                   cumsum(event %in% c("MAST", "METR", "SOLD", "DIED"))),
+    # Create a Fresh Date 'FDAT' that will be the denominator time frame.
+    FDAT = date_event[event == "FRESH"][1]   # assign FRESH date to all rows
   ) %>%
   ungroup()
 
-# Direct incidence calculation
+
+#| label: 1st case counts, rate and pct data frame 'incidence-summary'
+
+# Calculation of 1st case incidence counts and incidence rates in 1st 30 DIM
+# Create new data frame 'incidence_summary' to summarize, sum, rate and pct
 incidence_summary <- event_lact %>%
+  # group by FDAT month/year
+  group_by(fdat_year = year(FDAT), fdat_month = month(FDAT, label = TRUE)) %>%
   summarise(
     n_fresh   = sum(event == "FRESH"),
     n_mast_30 = sum(event == "MAST" & SEQ == 1 & dim_event <= 30),
-    incidence_rate = n_mast_30 / n_fresh,
-    incidence_pct  = incidence_rate * 100
+    n_metr_30 = sum(event == "METR" & SEQ == 1 & dim_event <= 30),
+    n_sold_30 = sum(event == "SOLD" & SEQ == 1 & dim_event <= 30),
+    n_died_30 = sum(event == "DIED" & SEQ == 1 & dim_event <= 30),
+    mast_rate = n_mast_30 / n_fresh,
+    mast_pct  = mast_rate * 100,
+    metr_rate = n_metr_30 / n_fresh,
+    metr_pct  = metr_rate * 100,
+    sold_rate = n_sold_30 / n_fresh,
+    sold_pct  = sold_rate * 100,
+    died_rate = n_died_30 / n_fresh,
+    died_pct  = died_rate * 100,
+    .groups = "drop"
   )
 
 
 # =================================================================================
-# Summarise MAST incidence by lact_group_5 and floordate_date
+# Heat Map MAST incidence by lact_group_5 and floordate_date
 # =================================================================================
 
-# incidence by lact_group_5 and month
+
+# summarise incidence by lact_group_5 and FDAT month/year
 incidence_summary <- event_lact %>%
-  filter(floordate_date >= as.Date("2023-01-01")) %>%
-  group_by(lact_group_5, floordate_date) %>%
+  filter(FDAT >= as.Date("2023-01-01")) %>%   # use FDAT instead of floordate_date
+  group_by(lact_group_5,
+           fdat_year = year(FDAT),
+           fdat_month = month(FDAT, label = TRUE, abbr = FALSE)) %>%
   summarise(
     n_fresh   = sum(event == "FRESH"),
     n_mast_30 = sum(event == "MAST" & SEQ == 1 & dim_event <= 30),
     incidence_rate = n_mast_30 / n_fresh,
     incidence_pct  = incidence_rate * 100,
     .groups = "drop"
+  ) %>%
+  mutate(
+    # ensure calendar month order Jan–Dec
+    fdat_month = factor(fdat_month,
+                        levels = month.name,
+                        ordered = TRUE)
   )
 
-# view the table
-print(incidence_summary)
-
-# Add year column for faceting
-incidence_summary <- incidence_summary %>%
-  mutate(year = year(floordate_date))
-
-ggplot(incidence_summary, aes(x = floordate_date, y = lact_group_5, fill = incidence_pct)) +
+# heatmap plot
+ggplot(incidence_summary,
+       aes(x = fdat_month, y = lact_group_5, fill = incidence_pct)) +
   geom_tile(color = "white") +
-  geom_text(aes(label = round(incidence_pct, 1)), 
-            color = "black", 
-            size = 3, 
-            angle = 90, 
-            vjust = 0.5, 
+  geom_text(aes(label = round(incidence_pct, 1)),
+            color = "black",
+            size = 3,
+            angle = 90,
+            vjust = 0.5,
             hjust = 0.5) +
   scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
-  facet_wrap(~ year, scales = "free_x") +   # facet by year, but keep floordate_date on x-axis
-  scale_x_date(date_labels = "%b-%Y", date_breaks = "1 month") +  # show month-year labels
+  facet_wrap(~ fdat_year) +   # facet by year, months in calendar order
   theme_minimal() +
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1),
     panel.grid = element_blank()
   ) +
   labs(
-    x = "Month-Year",
+    x = "Month",
     y = "Lactation Group",
     title = "Heatmap of Mastitis Incidence (first case ≤ 30 DIM)",
     subtitle = "Faceted by year, restricted to 2023+"
   )
+```
 
+
+```{r}
+#| label: Case Counts for Cow Health Events (All cases up to 30 DIM)
 
 # =================================================================================
-# Summarise FRESH events by lact_group_5 and month
+# Summarise FRESH event COUNT by lact_group_5 and month
 # =================================================================================
 
 fresh_grid <- event_lact %>%
@@ -373,7 +416,7 @@ fresh_grid <- event_lact %>%
   )
 
 # View the grid table
-print(fresh_grid)
+# print(fresh_grid)
 
 # Plot as a grid heatmap or faceted bar chart
 ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
@@ -389,6 +432,322 @@ ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
   )
 
 
+# =================================================================================
+# Summarise SOLD event COUNT by lact_group_5 and month
+# =================================================================================
+
+fresh_grid <- event_lact %>%
+  filter(floordate_date >= as.Date("2023-01-01"),
+         event == "SOLD") %>%
+  group_by(lact_group_5, floordate_date) %>%
+  summarise(
+    n_fresh = n(), .groups = "drop"
+  )
+
+# View the grid table
+# print(fresh_grid)
+
+# Plot as a grid heatmap or faceted bar chart
+ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
+  geom_col(position = "dodge") +
+  facet_grid(lact_group_5 ~ .) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    x = "Month-Year",
+    y = "Number of SOLD events",
+    fill = "Lactation Group",
+    title = "SOLD events by lactation group and month"
+  )
+
+
+# =================================================================================
+# Summarise DIED event COUNT by lact_group_5 and month
+# =================================================================================
+
+fresh_grid <- event_lact %>%
+  filter(floordate_date >= as.Date("2023-01-01"),
+         event == "DIED") %>%
+  group_by(lact_group_5, floordate_date) %>%
+  summarise(
+    n_fresh = n(), .groups = "drop"
+  )
+
+# View the grid table
+# print(fresh_grid)
+
+# Plot as a grid heatmap or faceted bar chart
+ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
+  geom_col(position = "dodge") +
+  facet_grid(lact_group_5 ~ .) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    x = "Month-Year",
+    y = "Number of DIED events",
+    fill = "Lactation Group",
+    title = "DIED events by lactation group and month"
+  )
+
+# =================================================================================
+# Summarise MAST event COUNT by lact_group_5 and month
+# =================================================================================
+
+fresh_grid <- event_lact %>%
+  filter(floordate_date >= as.Date("2023-01-01"),
+         event == "MAST") %>%
+  group_by(lact_group_5, floordate_date) %>%
+  summarise(
+    n_fresh = n(), .groups = "drop"
+  )
+
+# View the grid table
+# print(fresh_grid)
+
+# Plot as a grid heatmap or faceted bar chart
+ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
+  geom_col(position = "dodge") +
+  facet_grid(lact_group_5 ~ .) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    x = "Month-Year",
+    y = "Number of MAST events",
+    fill = "Lactation Group",
+    title = "MAST events by lactation group and month"
+  )
+
+
+# =================================================================================
+# Summarise METR event COUNT by lact_group_5 and month
+# =================================================================================
+
+fresh_grid <- event_lact %>%
+  filter(floordate_date >= as.Date("2023-01-01"),
+         event == "METR") %>%
+  group_by(lact_group_5, floordate_date) %>%
+  summarise(
+    n_fresh = n(), .groups = "drop"
+  )
+
+# View the grid table
+# print(fresh_grid)
+
+# Plot as a grid heatmap or faceted bar chart
+ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
+  geom_col(position = "dodge") +
+  facet_grid(lact_group_5 ~ .) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(
+    x = "Month-Year",
+    y = "Number of METR events",
+    fill = "Lactation Group",
+    title = "METR events by lactation group and month"
+  )
+```
+
+
+```{r}
+#| label: Incidence Rates - Cow Health, 1st case incidence, 1st 30 DIM
+
+# =================================================================================
+# Heat Map SOLD incidence by lact_group_5 and floordate_date
+# =================================================================================
+
+
+# summarise incidence by lact_group_5 and FDAT month/year
+incidence_summary <- event_lact %>%
+  filter(FDAT >= as.Date("2023-01-01")) %>%   # use FDAT instead of floordate_date
+  group_by(lact_group_5,
+           fdat_year = year(FDAT),
+           fdat_month = month(FDAT, label = TRUE, abbr = FALSE)) %>%
+  summarise(
+    n_fresh   = sum(event == "FRESH"),
+    n_mast_30 = sum(event == "SOLD" & SEQ == 1 & dim_event <= 30),
+    incidence_rate = n_mast_30 / n_fresh,
+    incidence_pct  = incidence_rate * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # ensure calendar month order Jan–Dec
+    fdat_month = factor(fdat_month,
+                        levels = month.name,
+                        ordered = TRUE)
+  )
+
+# heatmap plot
+ggplot(incidence_summary,
+       aes(x = fdat_month, y = lact_group_5, fill = incidence_pct)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(incidence_pct, 1)),
+            color = "black",
+            size = 3,
+            angle = 90,
+            vjust = 0.5,
+            hjust = 0.5) +
+  scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
+  facet_wrap(~ fdat_year) +   # facet by year, months in calendar order
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Month",
+    y = "Lactation Group",
+    title = "Heatmap of SOLD Incidence (first case ≤ 30 DIM)",
+    subtitle = "Faceted by year, restricted to 2023+"
+  )
+
+
+# =================================================================================
+# Heat Map DIED incidence by lact_group_5 and floordate_date
+# =================================================================================
+
+
+# summarise incidence by lact_group_5 and FDAT month/year
+incidence_summary <- event_lact %>%
+  filter(FDAT >= as.Date("2023-01-01")) %>%   # use FDAT instead of floordate_date
+  group_by(lact_group_5,
+           fdat_year = year(FDAT),
+           fdat_month = month(FDAT, label = TRUE, abbr = FALSE)) %>%
+  summarise(
+    n_fresh   = sum(event == "FRESH"),
+    n_mast_30 = sum(event == "DIED" & SEQ == 1 & dim_event <= 30),
+    incidence_rate = n_mast_30 / n_fresh,
+    incidence_pct  = incidence_rate * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # ensure calendar month order Jan–Dec
+    fdat_month = factor(fdat_month,
+                        levels = month.name,
+                        ordered = TRUE)
+  )
+
+# heatmap plot
+ggplot(incidence_summary,
+       aes(x = fdat_month, y = lact_group_5, fill = incidence_pct)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(incidence_pct, 1)),
+            color = "black",
+            size = 3,
+            angle = 90,
+            vjust = 0.5,
+            hjust = 0.5) +
+  scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
+  facet_wrap(~ fdat_year) +   # facet by year, months in calendar order
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Month",
+    y = "Lactation Group",
+    title = "Heatmap of DIED Incidence (first case ≤ 30 DIM)",
+    subtitle = "Faceted by year, restricted to 2023+"
+  )
+
+
+# =================================================================================
+# Heat Map MAST incidence by lact_group_5 and floordate_date
+# =================================================================================
+
+
+# summarise incidence by lact_group_5 and FDAT month/year
+incidence_summary <- event_lact %>%
+  filter(FDAT >= as.Date("2023-01-01")) %>%   # use FDAT instead of floordate_date
+  group_by(lact_group_5,
+           fdat_year = year(FDAT),
+           fdat_month = month(FDAT, label = TRUE, abbr = FALSE)) %>%
+  summarise(
+    n_fresh   = sum(event == "FRESH"),
+    n_mast_30 = sum(event == "MAST" & SEQ == 1 & dim_event <= 30),
+    incidence_rate = n_mast_30 / n_fresh,
+    incidence_pct  = incidence_rate * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # ensure calendar month order Jan–Dec
+    fdat_month = factor(fdat_month,
+                        levels = month.name,
+                        ordered = TRUE)
+  )
+
+# heatmap plot
+ggplot(incidence_summary,
+       aes(x = fdat_month, y = lact_group_5, fill = incidence_pct)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(incidence_pct, 1)),
+            color = "black",
+            size = 3,
+            angle = 90,
+            vjust = 0.5,
+            hjust = 0.5) +
+  scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
+  facet_wrap(~ fdat_year) +   # facet by year, months in calendar order
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Month",
+    y = "Lactation Group",
+    title = "Heatmap of MAST Incidence (first case ≤ 30 DIM)",
+    subtitle = "Faceted by year, restricted to 2023+"
+  )
+
+# =================================================================================
+# Heat Map METR incidence by lact_group_5 and floordate_date
+# =================================================================================
+
+
+# summarise incidence by lact_group_5 and FDAT month/year
+incidence_summary <- event_lact %>%
+  filter(FDAT >= as.Date("2023-01-01")) %>%   # use FDAT instead of floordate_date
+  group_by(lact_group_5,
+           fdat_year = year(FDAT),
+           fdat_month = month(FDAT, label = TRUE, abbr = FALSE)) %>%
+  summarise(
+    n_fresh   = sum(event == "FRESH"),
+    n_mast_30 = sum(event == "METR" & SEQ == 1 & dim_event <= 30),
+    incidence_rate = n_mast_30 / n_fresh,
+    incidence_pct  = incidence_rate * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # ensure calendar month order Jan–Dec
+    fdat_month = factor(fdat_month,
+                        levels = month.name,
+                        ordered = TRUE)
+  )
+
+# heatmap plot
+ggplot(incidence_summary,
+       aes(x = fdat_month, y = lact_group_5, fill = incidence_pct)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(incidence_pct, 1)),
+            color = "black",
+            size = 3,
+            angle = 90,
+            vjust = 0.5,
+            hjust = 0.5) +
+  scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
+  facet_wrap(~ fdat_year) +   # facet by year, months in calendar order
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    x = "Month",
+    y = "Lactation Group",
+    title = "Heatmap of METR Incidence (first case ≤ 30 DIM)",
+    subtitle = "Faceted by year, restricted to 2023+"
+  )
 
 # event_lact %>%
 #   filter(event %in% c("FRESH", "MAST")) %>%   # keep only FRESH and MAST
