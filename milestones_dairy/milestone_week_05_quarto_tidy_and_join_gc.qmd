@@ -429,15 +429,16 @@ risk_data <- graph_data |>
 
 # Most common lesion is Digital dermatitis and likely found at the time of routine trimming at dry-off and mid lactation. Some of evidence of heat stress impact on lesion occurence
 ```{r}
-# graph occurence data
-
 #| label: fig-lesion
 #| fig-cap: "Older cows have more lesion"
+#| height: 7
+#| width: 10
 
 graph <- risk_data |> 
   filter(!is.na(protocols)) |> 
   filter(lact_group == "LACT 3+") |> 
-  mutate(protocols = fct_reorder(protocols, risk)) |> 
+  mutate(protocols = fct_reorder(factor(protocols),
+                                 risk)) |> 
   ggplot()+
   geom_segment(aes(x = month_year, xend = month_year, 
                    y = risk, yend = 0, 
