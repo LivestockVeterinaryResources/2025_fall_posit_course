@@ -232,5 +232,15 @@ events_health |>
           geom_bar()+
           facet_wrap(facet = vars(Disease))
 
+animals<-read_parquet('../data/intermediate_files/animals.parquet')
+animal_lactations<-read_parquet('../data/intermediate_files/animal_lactations.parquet')
+
+Animals_with_deno <- left_join(animals, animal_lactations |> 
+                               select(id_animal) |> 
+                                 distinct())
+  
+
+Ani_with_deno_events <- full_join(Animals_with_deno, events_health)
+
 ```
 
