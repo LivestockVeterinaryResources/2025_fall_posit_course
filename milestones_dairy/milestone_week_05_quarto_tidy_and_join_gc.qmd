@@ -427,11 +427,17 @@ risk_data <- graph_data |>
 
 ```
 
-# Most common lesion is Digital dermatitis and likely found at the time of routine trimming at dry-off and mid lactation. Some of evidence of heat stress impact on lesion occurence
+# Most common lesion is Digital dermatitis
+
+-   likely found at the time of routine trimming at dry-off and mid
+    lactation.
+
+-   Some of evidence of heat stress impact on lesion occurrence
+
 ```{r}
 #| label: fig-lesion
 #| fig-cap: "Older cows have more lesion"
-#| height: 10
+#| height: 14
 #| width: 10
 
 graph <- risk_data |> 
@@ -479,5 +485,3 @@ graph
 
 
 ```
-
-
