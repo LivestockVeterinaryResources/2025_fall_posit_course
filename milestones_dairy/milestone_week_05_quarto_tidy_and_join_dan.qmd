@@ -77,6 +77,15 @@ head(solution)
 ```{r}
 #write your code to pivot the table here
 
+deno365_long <- deno365 |> 
+  pivot_longer(
+    cols = c('ct_animal_lactations', 'ct_animals', 'ct_animal_time_periods'),
+    names_to = "metric",
+    values_to = "ct"
+  )
+
+deno365_long
+
 ```
 
 Run the chunk below to see if your solution matches
@@ -128,6 +137,19 @@ quarto::quarto_render(
     )
 )
 
+quarto::quarto_render(
+  input = "../step3_denominators_by_lactation_group.qmd",
+  execute_dir = dirname("../step3_denominators_by_lactation_group.qmd"),
+  execute_params = list(
+    denominator_granularity = 90, 
+      cut_by_days = 30, 
+      top_cut = 400, 
+      top_cut_hfr = 500 
+    )
+)
+
+
+
  
 ```
 
@@ -138,12 +160,38 @@ Here is a template to read in the new file you created.
 You need to modify the "XXX" place holder so that it matches the number you put for denominator granularity in the chunk above.
 
 ```{r}
-denoNEW<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time_periodXXX.parquet')
+denoNEW<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time_period90.parquet')
 ```
 
 Use this code chunk to explore the new denominator
 
 ```{r}
+view(denoNEW)
+
+denoNEW_long <- denoNEW |> 
+  pivot_longer(
+    cols = c('ct_animal_lactations', 'ct_animals', 'ct_animal_time_periods'),
+    names_to = "metric",
+    values_to = "ct"
+  )
+
+denoNEW_long
+
+ggplot()+
+  geom_point(data = denoNEW_long%>%filter(deno_type %in% 'lact_basic'),
+             aes(x = date_time_period_start, y = ct, color = metric, fill = metric, shape = metric), 
+             size = 3, alpha = .3, stroke = 2)+
+  
+  facet_grid(location_lact_list~`Lactation Group`, scales = 'free_y')+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        legend.position = 'top')+
+  labs(fill = '', 
+       color = '', 
+       shape = '',
+       title = 'Denominator Options By 90 Day Intervals')+
+  scale_shape_manual(values = c(21,22,24,25))
+
 
 ```
 
@@ -170,3 +218,19 @@ NOTE: Denominators can be challenging. If you get stuck:
 -   Begin filling in code
 
 -   Ask the group for help if you get completely stuck.
+
+```{r}
+events_health |> 
+  filter(event == c('DA', 'KETOSIS', 'RP', 'PROLAPS')) |> 
+  mutate(floor_date = floor_date(date_event, 'months')) |> 
+  relocate(id_animal, event, date_event) |> 
+  fxn_add_event_counts() |> 
+  mutate(age_event = date_event - date_birth) |> 
+  mutate(Disease = event) |> 
+  
+          ggplot(aes(floordate_month))+
+          geom_bar()+
+          facet_wrap(facet = vars(Disease))
+
+```
+
