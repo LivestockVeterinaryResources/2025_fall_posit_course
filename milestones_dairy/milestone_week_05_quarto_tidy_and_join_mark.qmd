@@ -97,7 +97,7 @@ deno365_long <- deno365 %>%
 
 deno365_long
 
-write_csv(solution,"excel_excuses.csv")
+# write_csv(solution,"excel_excuses.csv")
 ```
 
 Run the chunk below to see if your solution matches
@@ -262,7 +262,7 @@ denoNEW_long %>%
 
 
 ```{r}
-#| label: animals denominator parquet
+#| label: read animals denominator parquet
 
 
 event_form <- read_parquet('../data/intermediate_files/events_formatted.parquet')
@@ -297,7 +297,7 @@ library(ggplot2)
 # =================================================================================
 
 event_lact <- event_form %>%
-  # Create event_lact to extract fresh cow test events
+  # Create 'event_lact' to extract fresh cow test events
   filter(lact_group_basic != "Heifer",
          event %in% c("FRESH", "MAST", "METR", "SOLD", "DIED")) %>%
   # Add floordate Date and Mon
@@ -315,7 +315,7 @@ event_lact <- event_form %>%
   # Group the data by animal ID and LACT to ensure that all entries are grouped together.
   group_by(id_animal, lact_number) %>%
   mutate(
-    # Column to display the number of the event, i.e. MAST case #3. Sequential sum
+    # SEQ Column to display the number of the event, i.e. MAST case #3. Sequential sum
     SEQ  = if_else(event == "FRESH", 1L,
                    cumsum(event %in% c("MAST", "METR", "SOLD", "DIED"))),
     # Create a Fresh Date 'FDAT' that will be the denominator time frame.
@@ -348,55 +348,6 @@ incidence_summary <- event_lact %>%
     .groups = "drop"
   )
 
-
-# =================================================================================
-# Heat Map MAST incidence by lact_group_5 and floordate_date
-# =================================================================================
-
-
-# summarise incidence by lact_group_5 and FDAT month/year
-incidence_summary <- event_lact %>%
-  filter(FDAT >= as.Date("2023-01-01")) %>%   # use FDAT instead of floordate_date
-  group_by(lact_group_5,
-           fdat_year = year(FDAT),
-           fdat_month = month(FDAT, label = TRUE, abbr = FALSE)) %>%
-  summarise(
-    n_fresh   = sum(event == "FRESH"),
-    n_mast_30 = sum(event == "MAST" & SEQ == 1 & dim_event <= 30),
-    incidence_rate = n_mast_30 / n_fresh,
-    incidence_pct  = incidence_rate * 100,
-    .groups = "drop"
-  ) %>%
-  mutate(
-    # ensure calendar month order Jan–Dec
-    fdat_month = factor(fdat_month,
-                        levels = month.name,
-                        ordered = TRUE)
-  )
-
-# heatmap plot
-ggplot(incidence_summary,
-       aes(x = fdat_month, y = lact_group_5, fill = incidence_pct)) +
-  geom_tile(color = "white") +
-  geom_text(aes(label = round(incidence_pct, 1)),
-            color = "black",
-            size = 3,
-            angle = 90,
-            vjust = 0.5,
-            hjust = 0.5) +
-  scale_fill_gradient(low = "lightyellow", high = "red", name = "Incidence %") +
-  facet_wrap(~ fdat_year) +   # facet by year, months in calendar order
-  theme_minimal() +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    x = "Month",
-    y = "Lactation Group",
-    title = "Heatmap of Mastitis Incidence (first case ≤ 30 DIM)",
-    subtitle = "Faceted by year, restricted to 2023+"
-  )
 ```
 
 
@@ -404,7 +355,7 @@ ggplot(incidence_summary,
 #| label: Case Counts for Cow Health Events (All cases up to 30 DIM)
 
 # =================================================================================
-# Summarise FRESH event COUNT by lact_group_5 and month
+# Plot FRESH event COUNT by lact_group_5 and month
 # =================================================================================
 
 fresh_grid <- event_lact %>%
@@ -433,7 +384,7 @@ ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
 
 
 # =================================================================================
-# Summarise SOLD event COUNT by lact_group_5 and month
+# Plot SOLD event COUNT by lact_group_5 and month
 # =================================================================================
 
 fresh_grid <- event_lact %>%
@@ -462,7 +413,7 @@ ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
 
 
 # =================================================================================
-# Summarise DIED event COUNT by lact_group_5 and month
+# Plot DIED event COUNT by lact_group_5 and month
 # =================================================================================
 
 fresh_grid <- event_lact %>%
@@ -490,7 +441,7 @@ ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
   )
 
 # =================================================================================
-# Summarise MAST event COUNT by lact_group_5 and month
+# Plot MAST event COUNT by lact_group_5 and month
 # =================================================================================
 
 fresh_grid <- event_lact %>%
@@ -519,7 +470,7 @@ ggplot(fresh_grid, aes(x = floordate_date, y = n_fresh, fill = lact_group_5)) +
 
 
 # =================================================================================
-# Summarise METR event COUNT by lact_group_5 and month
+# Plot METR event COUNT by lact_group_5 and month
 # =================================================================================
 
 fresh_grid <- event_lact %>%
