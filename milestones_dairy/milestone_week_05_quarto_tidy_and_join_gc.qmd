@@ -397,17 +397,80 @@ dim_lame <- events_formatted %>%
                               "300 to 359" = "5",
                               "360 to Inf" = "6")
          ) |> 
-  select(location_event, id_animal,
+  # select variables and rename OTF
+  select(location_event, id_animal, month_year = floordate_month ,
          lact_group, protocols, dim_event, date_event, dim_cat
          ) |> 
   # now get counts by lesion and dim category
-  group_by(location_event,lact_group, protocols, dim_cat) %>%
-  summarise(count = n(),
+  group_by(location_event,month_year, 
+           lact_group, protocols, dim_cat) %>%
+  summarise(count_event = n(),
             .groups = "drop"
             ) 
 
 ```
 
 ```{r}
+# join 2 data set
+
+risk_data <- graph_data |> 
+  filter(!day_of_phase_group == "NA to NA") |>
+  filter(metric == "Animals" ) |> 
+  rename(dim_cat = day_of_phase_group) |> 
+  left_join(dim_lame, by = join_by(location_lact_list == location_event,
+                                   lact_group, 
+                                   month_year, dim_cat)) |> 
+  # replace NA in count_event with 0 to allow calculations
+  mutate(count_event = if_else(is.na(count_event), 0, count_event),
+         risk = round(count_event/count * 100,1)
+         )
 
 ```
+
+# Most common lesion is Digital dermatitis and likely found at the time of routine trimming at dry-off and mid lactation. Some of evidence of heat stress impact on lesion occurence
+```{r}
+# graph occurence data
+
+#| label: fig-lesion
+#| fig-cap: "Older cows have more lesion"
+
+graph <- risk_data |> 
+  filter(!is.na(protocols)) |> 
+  filter(lact_group == "LACT 3+") |> 
+  mutate(protocols = fct_reorder(protocols, risk)) |> 
+  ggplot()+
+  geom_segment(aes(x = month_year, xend = month_year, 
+                   y = risk, yend = 0, 
+                   color = factor(month_year)), 
+               linewidth = 2)+
+  geom_point(aes(x = month_year, y = risk, 
+                 color = factor(month_year)), 
+             size = 6) +
+  geom_text(aes(month_year, 
+                risk, label = round(risk, digits = 1)), 
+            nudge_x = +.01, 
+            color = "white", size = 2.5,
+            show.legend = FALSE)+ 
+  facet_grid(cols = vars(dim_cat),
+             rows = vars(protocols),
+              scales = "free_y")+
+  theme(strip.text = element_text(face = "bold"))+
+  coord_flip() +
+  theme_minimal() +
+  # gets rid of legend
+  theme(legend.position = "",
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 12))+
+  labs (title = "DIM Categories",
+        x = "",
+        y = "Monthly # of cases per 100 cows"
+        ) +
+  # pretty colours 
+  scale_x_date(date_breaks = "2 month", date_labels = "%b %Y") +
+  scale_color_viridis_d()
+
+graph
+
+
+```
+
+
