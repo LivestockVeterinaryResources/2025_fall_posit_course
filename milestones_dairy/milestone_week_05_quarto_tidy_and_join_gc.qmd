@@ -23,20 +23,27 @@ source('data_milestones/fxn_floor_dates.R')
 
 ## Denominators
 
-Now that you can tidy data, pivot longer or wider, and then join tables to others, you are both unstoppable . . . and dangerous.
+Now that you can tidy data, pivot longer or wider, and then join tables
+to others, you are both unstoppable . . . and dangerous.
 
 In this lesson we will explore one method of creating denominators.
 
-The chunk below calls a script which will create a standard denominator file and save it in \`data/intermediate_files\` folder named `denominator_by_lact_group_time_periodXXX.parquet`.
+The chunk below calls a script which will create a standard denominator
+file and save it in \`data/intermediate_files\` folder named
+`denominator_by_lact_group_time_periodXXX.parquet`.
 
-The "XXX" in the file name represents the number of days within each time period used to denominator calculations.
+The "XXX" in the file name represents the number of days within each
+time period used to denominator calculations.
 
-When you run the chunk below it will - generate a denominator file with a time period of 365 days - read that file into your environment and name it deno365. (it will take a bit of time to run)
+When you run the chunk below it will - generate a denominator file with
+a time period of 365 days - read that file into your environment and
+name it deno365. (it will take a bit of time to run)
 
 ```{r}
-#| warnings: false
-#| message: false
 #| echo: false
+#| message: false
+#| include: false
+#| warnings: false
 
 quarto::quarto_render(
   input = "../step3_denominators_by_lactation_group.qmd",
@@ -62,7 +69,9 @@ deno365<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time
 
 ## Part 1 - Explore lactation group denominators
 
-There are multiple denominator types to choose from in this file. Write some code in the chunk below to list the names of the different values in the deno_type variable
+There are multiple denominator types to choose from in this file. Write
+some code in the chunk below to list the names of the different values
+in the deno_type variable
 
 ```{r}
 
@@ -81,11 +90,16 @@ You will notice that there are 2 basic types:
 -   lactation groups (begin with "lact\_")
 -   day of phase plus lactation group (begin with "dop\_")
 
-In order to explore these options further, write some code in the chunk below that pivots the data so that you can graphically compare metric types more easily.
+In order to explore these options further, write some code in the chunk
+below that pivots the data so that you can graphically compare metric
+types more easily.
 
-You should pivot the columns: "ct_animal_time_periods", "ct_animals" , "ct_animal_lactations" Name your new pivoted dataframe `deno365_long`. Name your new variables: `metric` and `ct`
+You should pivot the columns: "ct_animal_time_periods", "ct_animals" ,
+"ct_animal_lactations" Name your new pivoted dataframe `deno365_long`.
+Name your new variables: `metric` and `ct`
 
-Run this chunk to see an example of what your final table should look like
+Run this chunk to see an example of what your final table should look
+like
 
 ```{r}
 head(solution)
@@ -110,8 +124,10 @@ waldo::compare(solution, deno365_long)
 
 Part 2 - Compare denominators
 
-Finding the right denominator is often more challenging than creating numerators.\
-Run the chunk below to see a graphical comparison of the metrics available in deno_type `lact_basic`
+Finding the right denominator is often more challenging than creating
+numerators.\
+Run the chunk below to see a graphical comparison of the metrics
+available in deno_type `lact_basic`
 
 ```{r}
 #### plot lact group counts
@@ -133,12 +149,19 @@ ggplot()+
 
 ```
 
-In order to get more familiar with the denominator creation function you can read the markdown report in the reports folder and/or look at the code in the denominator `step3_denominators_by_lactation_group.qmd` file.
+In order to get more familiar with the denominator creation function you
+can read the markdown report in the reports folder and/or look at the
+code in the denominator `step3_denominators_by_lactation_group.qmd`
+file.
 
-Modify the code below (***change the numeric values for the execute_params***) to create different time periods or day of phase cut points. Then describe the new denominator you generated using a graph, table or both.
+Modify the code below (***change the numeric values for the
+execute_params***) to create different time periods or day of phase cut
+points. Then describe the new denominator you generated using a graph,
+table or both.
 
 ```{r}
-#| echo: false
+#| warning: false
+#| include: false
 
 quarto::quarto_render(
   input = "../step3_denominators_by_lactation_group.qmd",
@@ -154,11 +177,13 @@ quarto::quarto_render(
  
 ```
 
-The new file you created can be found in the data/intermediate_files folder and will be named using the denominator_granularity that you set.
+The new file you created can be found in the data/intermediate_files
+folder and will be named using the denominator_granularity that you set.
 
 Here is a template to read in the new file you created.
 
-You need to modify the "XXX" place holder so that it matches the number you put for denominator granularity in the chunk above.
+You need to modify the "XXX" place holder so that it matches the number
+you put for denominator granularity in the chunk above.
 
 ```{r}
 
@@ -168,7 +193,8 @@ denoNEW<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time
 
 Use this code chunk to explore the new denominator
 
-Trying to get month #'s so can see seasonal trends and figure out complete vs incomplete
+Trying to get month \#'s so can see seasonal trends and figure out
+complete vs incomplete
 
 ```{r}
 # get seasonal numbers for last year
@@ -182,6 +208,7 @@ deno365_long_new <- denoNEW %>%
                values_to = 'count' )
 ```
 
+show levels fo day_of_phase_group to be able to use as a factor
 
 ```{r}
 # test levels
@@ -189,9 +216,7 @@ deno365_long_new <- denoNEW %>%
 sort(unique(deno365_long_new$day_of_phase_group))
 ```
 
-
 ```{r}
-
 # graphs
 
 dim_levels <- c("-Inf to 0","0 to 59", "60 to 119",
@@ -216,6 +241,10 @@ graph_data <- deno365_long_new |>
                               'Lactations' =  'ct_animal_lactations',
                               'Animals' = 'ct_animals',
                              'Animal Time' = 'ct_animal_time_periods')
+  ) |> 
+  mutate(
+         metric = fct_relevel(metric, "Animals", "Lactations", 
+                              "Animal Time")
                                 ) 
 
 graph_data_totals <- graph_data |> 
@@ -226,8 +255,21 @@ graph_data_totals <- graph_data |>
          total) |> 
   distinct() |> 
   mutate(total = round(total,0))
-  
+```
 
+Graph comparing denominators
+
+-   For lact 1 and 2 numbers for animals and lactations are the same as
+    cows calving end up in next lact level
+
+    -   This in not true for lact 3+ hence lactation and animal \#'s
+        differ
+
+-   Animal time accounts for time at risk and hence is lower as some
+    cows only spend part of the time in each time period. (formula is
+    total animal time in TP/# of days in TP
+
+```{r}
 graph <- graph_data |>
 #  filter(metric %in% ("ct_animals")) |>
   filter(!day_of_phase_group == "NA to NA") |>
@@ -237,6 +279,8 @@ graph <- graph_data |>
                  fill = fct_rev(day_of_phase_group),
                #shape = metric
                ),
+           # this add white between each category to make it cleaner
+           color = "white"
              #size = 3, alpha = .3, stroke = 2
              )+
   geom_text(data = graph_data_totals, 
@@ -276,17 +320,26 @@ graph
 
 ## Part 2 - Extension
 
-Think about the data you described in milestone 4. Standard denominators like the one above are often not good enough.
+Think about the data you described in milestone 4. Standard denominators
+like the one above are often not good enough.
 
-Use your new data wrangling skills to create the perfect denominator for your questions about this data.
+Use your new data wrangling skills to create the perfect denominator for
+your questions about this data.
 
 Options for creating denominators include:
 
-1)  modify the code that creates your denoNEW to create time periods and or day of phase cut points that you want to use for your data in milestone 4.
+1)  modify the code that creates your denoNEW to create time periods and
+    or day of phase cut points that you want to use for your data in
+    milestone 4.
 
-2)  use your new join skills to join `animal_lactations.parquet` to `animals.parquet` and create your own denominator from scratch that improves your ability to answer a question about your data in milestone 4.
+2)  use your new join skills to join `animal_lactations.parquet` to
+    `animals.parquet` and create your own denominator from scratch that
+    improves your ability to answer a question about your data in
+    milestone 4.
 
-3)  Create a different denominator in a completely different way. (for some questions the best denominator is a subset of events pivoted wider)
+3)  Create a different denominator in a completely different way. (for
+    some questions the best denominator is a subset of events pivoted
+    wider)
 
 NOTE: Denominators can be challenging. If you get stuck:
 
@@ -319,6 +372,7 @@ extension <- events_formatted %>%
   arrange(desc(n_lame_protocols))
 
 ```
+
 ```{r}
 
 # then extract dim of top 4 protocols with most lame events
@@ -354,3 +408,6 @@ dim_lame <- events_formatted %>%
 
 ```
 
+```{r}
+
+```
