@@ -55,6 +55,8 @@ There are multiple denominator types to choose from in this file. Write some cod
 
 ```{r}
 
+view(deno365)
+
 ```
 
 You will notice that there are 2 basic types:
