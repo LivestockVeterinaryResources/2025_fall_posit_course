@@ -39,13 +39,28 @@ In this milestone, you'll write some of the code that was written for you in mil
 ```{r}
 #| label: recreation-import
 #| 
-events<-read_parquet('../data/intermediate_files/events_formatted.parquet') |> 
-  filter(event_type %in% 'health') |> 
-  subset(event == 'NAVEL' | event == 'SEPTIC') |> 
-  mutate(floor_date = floor_date(date_event, 'months')) |> 
-  relocate(id_animal, event, date_event) |> 
-  fxn_add_event_counts() |> 
-  mutate(age_event = date_event - date_birth)
+
+
+
+events<-read_parquet('../data/intermediate_files/events_formatted.parquet') #|> 
+  
+
+events_health <- filter(events, event_type %in% 'health') #|> 
+  events_health
+  
+  unique_health_events <- unique(events_health$event)
+  unique_health_events
+  
+  # unique() |> 
+  # view()
+  
+  
+  # filter(event_type %in% 'health') |> 
+  # subset(event == 'NAVEL' | event == 'SEPTIC') |> 
+  # mutate(floor_date = floor_date(date_event, 'months')) |> 
+  # relocate(id_animal, event, date_event) |> 
+  # fxn_add_event_counts() |> 
+  # mutate(age_event = date_event - date_birth)
 
 events
 
@@ -90,8 +105,8 @@ events<-read_parquet('../data/intermediate_files/events_formatted.parquet') |>
           remark == "BAY+PEN" ~ "BAY+PEN",
           remark == "EXCNL+PEN" ~ "EXCNL+PEN",
           str_detect(remark, "PEN") ~ "PEN",
-          remark %in% "PLY" ~ "PLY",
-          remark %in% "X" ~ "X"),
+          str_detect(remark, "PLY") ~ "PLY",
+          str_detect(remark, "X") ~ "X"),
           .default = NA) |> 
     
           ggplot(aes(floordate_month))+
