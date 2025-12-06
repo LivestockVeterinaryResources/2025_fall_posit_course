@@ -39,10 +39,15 @@ In this milestone, you'll write some of the code that was written for you in mil
 ```{r}
 #| label: recreation-import
 #| 
-events<-read_parquet('../data/intermediate_files/events_formatted.parquet')%>%
-  filter(event_type %in% 'health')
+events<-read_parquet('../data/intermediate_files/events_formatted.parquet') |> 
+  filter(event_type %in% 'health') |> 
+  subset(event == 'NAVEL' | event == 'SEPTIC') |> 
+  mutate(floor_date = floor_date(date_event, 'months')) |> 
+  relocate(id_animal, event, date_event) |> 
+  fxn_add_event_counts() |> 
+  mutate(age_event = date_event - date_birth)
 
-
+events
 
 
 ```
@@ -65,6 +70,35 @@ Below are a couple example graphics, but yours can be prettier.
 ```{r}
 #| label: recreate-this
 #| message: false
+
+# unique(events$protocols)
+# unique(events$remark)
+# unique(events$Remark)
+# unique(events$remark_letters1)
+
+events<-read_parquet('../data/intermediate_files/events_formatted.parquet') |> 
+  filter(event_type %in% 'health') |> 
+  subset(event == 'NAVEL' | event == 'SEPTIC') |> 
+  mutate(floor_date = floor_date(date_event, 'months')) |> 
+  relocate(id_animal, event, date_event) |> 
+  fxn_add_event_counts() |> 
+  mutate(age_event = date_event - date_birth) |> 
+  mutate(Disease = event) |> 
+  mutate(
+      Treatment = case_when(
+          remark == "EXC+PEN" ~ "EXC+PEN",
+          remark == "BAY+PEN" ~ "BAY+PEN",
+          remark == "EXCNL+PEN" ~ "EXCNL+PEN",
+          str_detect(remark, "PEN") ~ "PEN",
+          remark %in% "PLY" ~ "PLY",
+          remark %in% "X" ~ "X"),
+          .default = NA) |> 
+    
+          ggplot(aes(floordate_month))+
+          geom_bar(mapping = aes(color = Treatment))+
+          facet_wrap(facet = vars(Disease))
+events
+
 
 
 knitr::include_graphics('images/milestone4_disease_over_time.jpg')

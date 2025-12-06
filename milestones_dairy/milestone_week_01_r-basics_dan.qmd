@@ -41,6 +41,13 @@ Write your code in the following chunk:
 
 
 number_of_rows<-nrow(animals)
+?mean
+average_age_left<-mean(animals$age_left)
+dplyr::counts_breed<-count(animals$breed)
+counts <- animals |> 
+  dplyr::count(location_list,
+               #breed,
+               sex)
 ```
 
 #### Check your answers
@@ -83,7 +90,8 @@ Write your code in the following chunk:
 ```{r}
 #| label: recreation of summary
 
-
+summary(animals)
+skim(animals)
 
 ```
 
