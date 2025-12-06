@@ -1,0 +1,227 @@
+---
+title: "Week 6 - Report Template"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-location: left
+    number-sections: true
+style:
+  theme: darkly
+execute:
+  message: false
+  warning: false
+  echo: false
+embed-resources: true
+params:
+  event:
+---
+
+```{r}
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  zoo
+  )
+
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet') %>%
+  add_new_variables()
+
+farm_name <- unique(events_formatted$location_event)
+
+```
+
+# Report for `r farm_name `
+
+## Example Dairy Data Tutorial
+
+### Data source
+
+
+
+## Exploration
+
+There are many things we could do with these base files. Just as an example we could graph the occurence of lame events per year over time by lactation group to get a general sense of the lameness of this dairy. Remember, this is a random sample of cows from a larger data set just to make the data sets more manageable for you initially. 
+
+To see what's recorded in lameness protocols
+```{r}
+
+lame_events<-events%>%
+  filter(event %in% c('LAME', "TRIM"))%>%
+  select(id_animal, event, date_event, protocols_letters1) |> 
+  group_by(protocols_letters1) |> 
+  count() |> 
+  ungroup()  
+
+
+lame_events |> gt()
+```
+# NA exploration
+
+Let's explore the NA's to see if there's a pattern
+
+# ```{r}
+# na_lame_events <- events%>%
+#   filter(event %in% c('LAME', "TRIM"))%>%
+#   select(id_animal, event, date_event, protocols_letters1, dim_event, breed,
+#          remark) |> 
+#   filter(is.na(protocols_letters1)
+#   ) 
+# 
+# na_lame_events
+# ```
+# 
+# It looks like some routine trims are also entered as lame's let's see how common this is
+# 
+# ```{r}
+# trim_only_count <- na_lame_events |> 
+#   count(remark, is.na(protocols_letters1), name = "count_nas",
+#         sort = TRUE) 
+# 
+# trim_only_count |> gt()
+# ```
+# 
+# Looks like NA's should be recoded into appropriate lesions below
+# 
+# # Recoding
+# 
+# For lameness at least it is easier to turn these lesions into individual variables as they are really separate diseases the code below does this.
+# 
+# ```{r}
+# lame_events<-events%>%
+#   filter(event %in% 'LAME') |> 
+#     mutate(floordate_year = floor_date(date_event, unit = 'year'))%>%
+#   # create lesions
+#   mutate(trimonly = case_when(protocols_letters1 == "Trim" |
+#                                 # this deals with the NA's in protocol letters
+#                                 event == "TRIM" |
+#                                 remark == "TRIMONLY" |
+#                                 remark == str_detect(remark, "NONE") ~ 1,
+#                               .default = 0),
+#          sole_ulcer = case_when(protocols_letters1 == "Ulcer" ~ 1,
+#                            .default = 0),
+#          # note please don't let dairies use abscess :)
+#          wld = case_when(str_detect(protocols_letters1,"Ab") |
+#                            # this deals with NA's in protocol letters
+#                            remark == str_detect(remark, "BLKA") ~ 1,
+#                          .default = 0),
+#          dd = case_when(protocols_letters1 == "Hairy"~ 1,
+#                         .default = 0),
+#          injury = case_when(protocols_letters1 == "Injury" ~ 1,
+#                             .default = 0),
+#          other = if_else(trimonly == 0 & sole_ulcer == 0 &
+#                          wld == 0 & dd == 0 & injury == 0, 1, 0)
+#          ) |> 
+#   select(id_animal, id_animal_lact, lact_number, lact_group_5, floordate_year,
+#          date_birth, date_event,
+#          trimonly, sole_ulcer, wld, dd, injury, other) |> 
+#   # delete footrim if lame/footrim on same day
+#   group_by(id_animal, date_event) |>
+#   slice_min(trimonly) |> 
+#   ungroup()
+#   
+# fxn_DT_base(head(lame_events))
+# ```
+# 
+# # count events
+# 
+# To then count individual diagnoses/events
+#   
+# ```{r}
+# 
+# lame_sum <- lame_events |> 
+#   group_by(floordate_year, lact_group_5)%>%
+#   summarize(across(c(trimonly, dd, sole_ulcer, wld, 
+#                      other, injury), \(x) sum(x, na.rm = TRUE)))%>%
+#   ungroup() |>
+#   # filter out just 2024
+#   filter(floordate_year == ymd("2024-01-01")) |> 
+#   pivot_longer(cols = c(trimonly, sole_ulcer, wld, dd, injury, other),
+#                names_to = "lesion_type",
+#                values_to = "count")
+# 
+# fxn_DT_base(head(lame_sum))
+# 
+# ```
+# # counting lifetime lamneness events
+# With most disease wether it is the first or 2nd event matters. The code below separates that out for the newly created diseases
+# 
+# 
+# ```{r}
+# 
+# ```
+# 
+# 
+# 
+# 
+# # merge with denominators
+# 
+# To turn this into a lacational risk and account for # cows we need to merge this with the denominators we calculated earlier
+# 
+# ```{r}
+# 
+# risk <- lame_sum |> 
+#     # filter out just 2024
+#   filter(floordate_year == ymd("2024-01-01") & lact_group_5 != "Heifer") |> 
+#   left_join(herd_deno, by = join_by(lact_group_5 == 'Lactation Group')) |> 
+#   mutate(risk = round(count/count_lactations*100,1)) |> 
+#   select(-c(floordate_year))
+# 
+# fxn_DT_base(head(risk))
+# 
+# 
+# ```
+# # graph lesions 
+# 
+# ## option 1 @fig-lesion
+# 
+# This graps the risk facetted by lactation group to allow comparisions.
+# 
+# ```{r}
+# #| label: fig-lesion
+# #| fig-cap: "Older cows have more lesion"
+# 
+# graph <- risk |> 
+#   # filter(lesion_type != "trimonly") |> 
+#   mutate(lesion_type = fct_reorder(lesion_type, risk)) |> 
+#   ggplot()+
+#   geom_segment(aes(x = lesion_type, xend = lesion_type, 
+#                    y = risk, yend = 0, 
+#                    color = lesion_type), 
+#                linewidth = 2)+
+#   geom_point(aes(x = lesion_type, y = risk, color = lesion_type), size = 6) +
+#   geom_text(aes(lesion_type, risk, label = round(risk, digits = 1)), 
+#             nudge_x = +.01, 
+#             color = "white", size = 2.5,
+#             show.legend = FALSE)+
+#   facet_wrap(vars(lact_group_5))+
+#   theme(strip.text = element_text(face = "bold"))+
+#     coord_flip() +
+#   theme_minimal() +
+#   # gets rid of legend
+#   theme(legend.position = "")+
+#   labs (x = "",
+#         y = "Yearly # of cases per 100 cows")+
+#   # pretty colours 
+#   scale_color_viridis_d()
+# 
+# 
+# graph
+# ```
+# Skim examples
+# 
+# ```{r}
+# skim <- skimr::skim(risk)
+# 
+# 
+# skim
+```
+
