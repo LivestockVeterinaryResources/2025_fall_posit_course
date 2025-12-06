@@ -431,14 +431,17 @@ risk_data <- graph_data |>
 ```{r}
 #| label: fig-lesion
 #| fig-cap: "Older cows have more lesion"
-#| height: 7
+#| height: 10
 #| width: 10
 
 graph <- risk_data |> 
   filter(!is.na(protocols)) |> 
   filter(lact_group == "LACT 3+") |> 
-  mutate(protocols = fct_reorder(factor(protocols),
-                                 risk)) |> 
+  mutate(protocols = fct_reorder(protocols,
+                                 risk,
+                                 .fun = sum,
+                                 .desc = TRUE)
+         ) |> 
   ggplot()+
   geom_segment(aes(x = month_year, xend = month_year, 
                    y = risk, yend = 0, 
@@ -466,7 +469,10 @@ graph <- risk_data |>
         y = "Monthly # of cases per 100 cows"
         ) +
   # pretty colours 
-  scale_x_date(date_breaks = "2 month", date_labels = "%b %Y") +
+  scale_x_date(date_breaks = "2 month", date_labels = "%b %Y",
+               expand = 
+                       expansion(mult =
+                                   c(0.05, 0.2))) +
   scale_color_viridis_d()
 
 graph
