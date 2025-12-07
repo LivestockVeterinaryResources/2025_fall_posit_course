@@ -1,23 +1,28 @@
 ---
-title: "Week 6 - Report Template"
+title: "Week 6 Milestone Template Report"
+author: Dairy Cow Foot Doc
 date: "`r Sys.Date()`"
 format:
   html:
+    theme: darkly
+    df_print: paged
     toc: true
     toc-location: left
     number-sections: true
-style:
-  theme: darkly
+    code-fold: true
+    cap-location: margin
 execute:
   message: false
   warning: false
-  echo: false
 embed-resources: true
 params:
   event:
 ---
 
 ```{r}
+#| label: setup
+#| include: false
+
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
   tidyverse,
@@ -32,196 +37,116 @@ pacman::p_load(
   )
 
 events_formatted <- read_parquet(
-  '../data/intermediate_files/events_formatted.parquet') %>%
-  add_new_variables()
+  '../data/intermediate_files/events_formatted.parquet')
 
+# create variables for inline code
 farm_name <- unique(events_formatted$location_event)
 
+date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
+date_min_pull <- date_max_pull - years(1)
+
+# create dataset to explore NA's
+lame_events <- events_formatted %>%
+  filter(event %in% c('LAME', "TRIM")) |> 
+  filter(date_event >= date_min_pull & date_event <= date_max_pull)
+
+number_lame <- lame_events |> 
+  filter(event == "LAME") |> 
+  count(event) |> 
+  pull(n)
+
+number_trim <- lame_events |> 
+  filter(event == "TRIM") |> 
+  count(event) |> 
+  pull(n)
+
+
 ```
 
-# Report for `r farm_name `
+```{=html}
+<!-- The objective of this milestone is to start the creation of a
+template you can use for reproducible reports going forward. Most of
+this milestone will focus on customizing the look of the report that you
+can use for future reports. We will also explore of the lameness data as
+part of this and build on the denominator stuff from week 5. It is
+likely that you will use this template in future milestones.
+A few notes:  1) The logo contains a clickable link 3) to use an image put it in the image folder 3)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
+```
 
-## Example Dairy Data Tutorial
+[![](images/logo%20no%20background.png){fig-alt="link to organization's github"
+fig-align="center" width="100"}](https://github.com/Dairy-Cow-Foot-Doc)
 
-### Data source
+# Report for `r farm_name`
 
+-   This report shows data from the past year from **`r date_min_pull`
+    to `r date_max_pull`**.
 
+## Events reported
 
-## Exploration
+In the data set there were:
 
-There are many things we could do with these base files. Just as an example we could graph the occurence of lame events per year over time by lactation group to get a general sense of the lameness of this dairy. Remember, this is a random sample of cows from a larger data set just to make the data sets more manageable for you initially. 
+1.  `r number_lame` lame events record this year
 
-To see what's recorded in lameness protocols
+2.  `r number_trim` trim events.
+
+# Objective
+
+We will start by exploring the lameness events reported in the data.
+
+Your objective is to recreate the analysis show below.
+
+-   For @fig-explore_lame_events The scale is viridis (of course :) )
+
+-   To get na's to show up as black you need to use the na.value
+    argument in scale_fill_viridis_d().
+
 ```{r}
+#| label: fig-explore_lame_events
 
-lame_events<-events%>%
-  filter(event %in% c('LAME', "TRIM"))%>%
-  select(id_animal, event, date_event, protocols_letters1) |> 
+lame_events_protocols <- lame_events %>%
+  filter(date_event >= date_min_pull) %>%
+  select(location_event, id_animal, event, date_event, 
+         protocols_letters1) |> 
   group_by(protocols_letters1) |> 
   count() |> 
-  ungroup()  
+  arrange(desc(n)) |>
+  ungroup()  |> 
+  ggplot()+
+  geom_col(aes(x = fct_reorder(protocols_letters1, n), 
+               y = n, 
+               fill = protocols_letters1))+
+  theme_minimal()+
+  coord_flip()+
+  theme(legend.position = "none")+
+  scale_fill_viridis_d(na.value = "black")+
+  labs(x = "Lameness Protocols",
+       y = "Count of Events")
 
+lame_events_protocols
 
-lame_events |> gt()
+  
 ```
+
 # NA exploration
 
 Let's explore the NA's to see if there's a pattern
 
-# ```{r}
-# na_lame_events <- events%>%
-#   filter(event %in% c('LAME', "TRIM"))%>%
-#   select(id_animal, event, date_event, protocols_letters1, dim_event, breed,
-#          remark) |> 
-#   filter(is.na(protocols_letters1)
-#   ) 
-# 
-# na_lame_events
-# ```
-# 
-# It looks like some routine trims are also entered as lame's let's see how common this is
-# 
-# ```{r}
-# trim_only_count <- na_lame_events |> 
-#   count(remark, is.na(protocols_letters1), name = "count_nas",
-#         sort = TRUE) 
-# 
-# trim_only_count |> gt()
-# ```
-# 
-# Looks like NA's should be recoded into appropriate lesions below
-# 
-# # Recoding
-# 
-# For lameness at least it is easier to turn these lesions into individual variables as they are really separate diseases the code below does this.
-# 
-# ```{r}
-# lame_events<-events%>%
-#   filter(event %in% 'LAME') |> 
-#     mutate(floordate_year = floor_date(date_event, unit = 'year'))%>%
-#   # create lesions
-#   mutate(trimonly = case_when(protocols_letters1 == "Trim" |
-#                                 # this deals with the NA's in protocol letters
-#                                 event == "TRIM" |
-#                                 remark == "TRIMONLY" |
-#                                 remark == str_detect(remark, "NONE") ~ 1,
-#                               .default = 0),
-#          sole_ulcer = case_when(protocols_letters1 == "Ulcer" ~ 1,
-#                            .default = 0),
-#          # note please don't let dairies use abscess :)
-#          wld = case_when(str_detect(protocols_letters1,"Ab") |
-#                            # this deals with NA's in protocol letters
-#                            remark == str_detect(remark, "BLKA") ~ 1,
-#                          .default = 0),
-#          dd = case_when(protocols_letters1 == "Hairy"~ 1,
-#                         .default = 0),
-#          injury = case_when(protocols_letters1 == "Injury" ~ 1,
-#                             .default = 0),
-#          other = if_else(trimonly == 0 & sole_ulcer == 0 &
-#                          wld == 0 & dd == 0 & injury == 0, 1, 0)
-#          ) |> 
-#   select(id_animal, id_animal_lact, lact_number, lact_group_5, floordate_year,
-#          date_birth, date_event,
-#          trimonly, sole_ulcer, wld, dd, injury, other) |> 
-#   # delete footrim if lame/footrim on same day
-#   group_by(id_animal, date_event) |>
-#   slice_min(trimonly) |> 
-#   ungroup()
-#   
-# fxn_DT_base(head(lame_events))
-# ```
-# 
-# # count events
-# 
-# To then count individual diagnoses/events
-#   
-# ```{r}
-# 
-# lame_sum <- lame_events |> 
-#   group_by(floordate_year, lact_group_5)%>%
-#   summarize(across(c(trimonly, dd, sole_ulcer, wld, 
-#                      other, injury), \(x) sum(x, na.rm = TRUE)))%>%
-#   ungroup() |>
-#   # filter out just 2024
-#   filter(floordate_year == ymd("2024-01-01")) |> 
-#   pivot_longer(cols = c(trimonly, sole_ulcer, wld, dd, injury, other),
-#                names_to = "lesion_type",
-#                values_to = "count")
-# 
-# fxn_DT_base(head(lame_sum))
-# 
-# ```
-# # counting lifetime lamneness events
-# With most disease wether it is the first or 2nd event matters. The code below separates that out for the newly created diseases
-# 
-# 
-# ```{r}
-# 
-# ```
-# 
-# 
-# 
-# 
-# # merge with denominators
-# 
-# To turn this into a lacational risk and account for # cows we need to merge this with the denominators we calculated earlier
-# 
-# ```{r}
-# 
-# risk <- lame_sum |> 
-#     # filter out just 2024
-#   filter(floordate_year == ymd("2024-01-01") & lact_group_5 != "Heifer") |> 
-#   left_join(herd_deno, by = join_by(lact_group_5 == 'Lactation Group')) |> 
-#   mutate(risk = round(count/count_lactations*100,1)) |> 
-#   select(-c(floordate_year))
-# 
-# fxn_DT_base(head(risk))
-# 
-# 
-# ```
-# # graph lesions 
-# 
-# ## option 1 @fig-lesion
-# 
-# This graps the risk facetted by lactation group to allow comparisions.
-# 
-# ```{r}
-# #| label: fig-lesion
-# #| fig-cap: "Older cows have more lesion"
-# 
-# graph <- risk |> 
-#   # filter(lesion_type != "trimonly") |> 
-#   mutate(lesion_type = fct_reorder(lesion_type, risk)) |> 
-#   ggplot()+
-#   geom_segment(aes(x = lesion_type, xend = lesion_type, 
-#                    y = risk, yend = 0, 
-#                    color = lesion_type), 
-#                linewidth = 2)+
-#   geom_point(aes(x = lesion_type, y = risk, color = lesion_type), size = 6) +
-#   geom_text(aes(lesion_type, risk, label = round(risk, digits = 1)), 
-#             nudge_x = +.01, 
-#             color = "white", size = 2.5,
-#             show.legend = FALSE)+
-#   facet_wrap(vars(lact_group_5))+
-#   theme(strip.text = element_text(face = "bold"))+
-#     coord_flip() +
-#   theme_minimal() +
-#   # gets rid of legend
-#   theme(legend.position = "")+
-#   labs (x = "",
-#         y = "Yearly # of cases per 100 cows")+
-#   # pretty colours 
-#   scale_color_viridis_d()
-# 
-# 
-# graph
-# ```
-# Skim examples
-# 
-# ```{r}
-# skim <- skimr::skim(risk)
-# 
-# 
-# skim
+```{r}
+#| label: na-lame-events
+#| echo: true
+
+na_lame_events <- lame_events %>% 
+      filter(is.na(protocols_letters1) 
+         )  |> 
+  group_by(location_event, remark) %>%
+  count() %>%
+  arrange(desc(n)) |> 
+  ungroup()
+
+rmarkdown::paged_table(na_lame_events)
+
 ```
 
+# Extension
+
+For this week extension customize the report to use your business' logo and use a theme/font colour scheme you prefer and that you could use for the reports you will generated with your skills learned in this course.
