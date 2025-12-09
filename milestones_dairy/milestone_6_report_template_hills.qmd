@@ -4,7 +4,7 @@ author: ""
 date: ""
 format:
   html:
-    toc: true
+    toc: false
     number-sections: true
     theme: cosmo
     code-fold: true
@@ -14,18 +14,23 @@ format:
 <img src="../milestones_dairy/images/ac-logo.png" style="height:100px; margin-bottom:20px;"/>
 
 <h1 style="margin:0; font-size:2rem;">
-
-Monthly Herd Health Report
-
+  Monthly Herd Health Report
 </h1>
 
-<h3 style="margin:5px 0 0 0; font-weight:normal; font-size:1rem;">
+<h2 style="margin:5px 0 0 0; font-weight:normal;">
+  Marrs Milky Way Dairy
+</h2>
 
-Animal Clinic LLC \| `r Sys.Date()`
+<h3 style="margin:5px 0 0 0; font-weight:normal; font-size:1rem;">
+  <a href="https://www.animalclinicfortlupton.com" style="text-decoration:none; color:inherit;">
+    Animal Clinic LLC
+  </a> | `r Sys.Date()`
+</h3>
 :::
 
+
 ```{r}
-#| label: setup
+#| label: setup packages and read in data
 #| include: false
 
 if (!require("pacman")) install.packages("pacman")
@@ -45,6 +50,13 @@ pacman::p_load(
 events_formatted <- read_parquet('../data/intermediate_files/events_formatted.parquet')
 animals <- read_parquet('../data/intermediate_files/animals.parquet')
 
+```
+
+
+```{r}
+#| label: set up df's
+#| include: false
+
 lame_events <- events_formatted |> 
   filter(event %in% c("LAME", "TRIM"))
 
@@ -59,7 +71,4 @@ vwp <- 50 # Set to herd's VWP
 
 youngstock_data <- events_formatted%>%
   filter(lact_number == 0)
-
 ```
-
-# 
