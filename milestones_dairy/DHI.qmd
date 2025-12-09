@@ -1,0 +1,35 @@
+---
+title: "DHI"
+format: html
+---
+```{r}
+library(tidyverse) #this includes many packages and is the main package used in nearly all data wrangling
+library(arrow) #this package handles parquet files
+library(skimr) #this is particularly helpful when looking at new data or finding NA values
+library(waldo)
+
+events <- read_csv('../DHI/SH 11.4.25.csv') 
+
+events2 <- events |> 
+  fill(HERD:VCKDTE)
+
+# pull out shifted rows
+shifted_rows <- events2 |> 
+  filter(is.na(EVENT) & is.na(DATE)) |>
+  select(-EVENT, -DATE) |>
+  rename(EVENT = USER21, DATE = USERD)
+
+# fill rows back in
+missing_rows <- which(is.na(events2$EVENT))
+stopifnot(length(missing_rows) == nrow(shifted_rows))
+events2[missing_rows, names(shifted_rows)] <- shifted_rows
+
+# delete extra columns
+events3 <- events2 |> 
+  select(1:which(names(events3) == "EVENT"))
+
+
+
+
+```
+
