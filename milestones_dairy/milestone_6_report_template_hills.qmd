@@ -1,0 +1,65 @@
+---
+title: ""
+author: ""
+date: ""
+format:
+  html:
+    toc: true
+    number-sections: true
+    theme: cosmo
+    code-fold: true
+---
+
+::: {style="text-align:center; margin-bottom:40px;"}
+<img src="../milestones_dairy/images/ac-logo.png" style="height:100px; margin-bottom:20px;"/>
+
+<h1 style="margin:0; font-size:2rem;">
+
+Monthly Herd Health Report
+
+</h1>
+
+<h3 style="margin:5px 0 0 0; font-weight:normal; font-size:1rem;">
+
+Animal Clinic LLC \| `r Sys.Date()`
+:::
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  zoo
+  )
+
+# data you will need for this report
+events_formatted <- read_parquet('../data/intermediate_files/events_formatted.parquet')
+animals <- read_parquet('../data/intermediate_files/animals.parquet')
+
+lame_events <- events_formatted |> 
+  filter(event %in% c("LAME", "TRIM"))
+
+mastitis_events <- events_formatted |> 
+  filter(event %in% c("MAST", "CULTURE"))
+
+repro_data <- events_formatted %>%
+  filter(event_type %in% c("repro"))%>%
+  select(id_animal, id_animal_lact, date_birth, lact_number, event, date_event, dim_event, R)
+
+vwp <- 50 # Set to herd's VWP
+
+youngstock_data <- events_formatted%>%
+  filter(lact_number == 0)
+
+```
+
+# 

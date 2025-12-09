@@ -35,7 +35,7 @@ lame_events <- events_formatted |>
 ```
 
 ```{r}
-#| label: Set date range:
+#| label: Set date range
 pull_date <- unique(animals$data_pull_date_max)
 date_start <- pull_date - 1825 # pulls last 5 years of data, modify for specific project
 date_end <- pull_date
@@ -242,8 +242,8 @@ NA exploration
 # put your code to explore NA's here and name it na_lame_event so the code
 # below will work
 na_lame_events <- lame_events |> 
-  count(is.na(remark), is.na(locate_lesion), is.na(date_event))
-
+  count(is.na(remark), is.na(protocols), is.na(date_event), is.na(date_archived))
+  
 # we will learn better ways to show tables later but for now this works
 rmarkdown::paged_table(na_lame_events)
 
