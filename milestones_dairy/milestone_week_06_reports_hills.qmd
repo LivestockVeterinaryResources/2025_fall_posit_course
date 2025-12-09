@@ -1,0 +1,258 @@
+---
+title: "Week 6 Milestone Template Report"
+format:
+  html
+embed-resources: true
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  zoo
+  )
+
+# data you will need for this report
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet')
+animals <- read_parquet('../data/intermediate_files/animals.parquet')
+
+# filter this data for LAME and TRIM in the event variable
+lame_events <- events_formatted |> 
+  filter(event %in% c("LAME", "TRIM"))
+
+
+```
+
+```{r}
+#| label: Set date range:
+pull_date <- unique(animals$data_pull_date_max)
+date_start <- pull_date - 1825 # pulls last 5 years of data, modify for specific project
+date_end <- pull_date
+```
+
+```{=html}
+
+<!-- The objective of this milestone is to start the creation of a
+template you can use for reproducible reports going forward. Most of
+this milestone will focus on customizing the look of the report that you
+can use for future reports. We will also explore of the lameness data.We will use this template in future milestones.
+A few notes:  
+1) The logo contains a clickable link 
+2) to use an image put it in the image folder (the one in the report is called 
+  logo_no_background.png)
+3)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
+```
+
+Run this chuck below. It will open the example report in your browser. You should delete this chunk in your final report
+
+```{r}
+#| label: open-html-r
+#| eval: false
+
+# 1. Define the file path
+file_path <- "images/milestone_6.htm"
+
+# 2. Open the browser
+browseURL(file_path)
+```
+
+Objective
+
+Explore recorded lameness/trim protocols
+
+Use the protocols_letters1 variable to get the information about the lameness/trim protocols used.
+
+```{r}
+#| label: Lame over DIM
+# put your graph code here
+
+lame_data <- lame_events %>% 
+  filter(is.na(date_archived)|date_archived > date_start) %>% 
+  filter(dim_event >=0)
+
+ggplot(lame_data, aes(x = dim_event)) +
+  geom_histogram(binwidth = 10, fill = "steelblue", color = "black", alpha = 0.7) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Distribution of Lameness Events Over Days in Milk",
+    x = "Days in Milk",
+    y = "Count"
+  ) +
+  theme(
+    panel.grid.major = element_line(color = "gray80"),
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(size = 14, face = "bold")
+  )
+
+```
+
+```{r}
+#| fig-height: 8
+#| label: lame event types
+summarize_lame_events<-lame_data |> 
+  group_by(event, protocols_remaining_after_numbers1) |> 
+  summarize(count_rows=sum(n()))|>
+  ungroup()%>%
+  mutate(event_type = factor(protocols_remaining_after_numbers1), 
+         Event = factor(event),
+         event_type = if_else(is.na(event_type), "Trim Only", event_type))
+
+facet_order <- summarize_lame_events %>%
+  group_by(event_type) %>%
+  summarise(n_y = n_distinct(event)) %>%
+  arrange(desc(n_y)) %>%  # Order by most y categories
+  pull(event_type)
+
+# order events
+summarize_lame_events <- summarize_lame_events %>%
+  mutate(event_type = fct_reorder(event_type, count_rows, .fun = sum, .desc = FALSE)) 
+
+  ggplot(summarize_lame_events)+
+  geom_bar(aes(x = event_type,
+               y = count_rows, fill = event_type), stat = "identity")+
+  #facet_wrap(factor(event, levels = facet_order) ~., scales = 'free')+
+    facet_wrap(vars(event), ncol = 1, scales = "free")+
+  coord_flip()+
+  scale_fill_viridis_d()+
+  theme_minimal()+
+  labs(x = "",
+       y = "Row Count")+
+  theme(legend.position = "none",
+        # axis.text.y = element_text(size = 6)
+  )
+```
+
+```{r}
+#| label: top 5 lame by dim
+summarized_lame_events <- lame_data |> 
+  group_by(dim_event, event, protocols_remaining_after_numbers1) |> 
+  summarise(count_rows = n(), .groups = "drop") |> 
+  mutate(event_type = factor(protocols_remaining_after_numbers1),
+         event = factor(event),
+         event_type = if_else(is.na(event_type), "Trim Only", event_type))
+
+summarized_lame_events <- lame_data |> 
+  mutate(
+    dim_event = as.numeric(dim_event),
+    dim_30 = floor(dim_event / 30) * 30
+  ) |> 
+  group_by(dim_30, event, protocols_remaining_after_numbers1) |> 
+  summarise(count_rows = n(), .groups = "drop") |> 
+  mutate(
+    event_type = factor(protocols_remaining_after_numbers1),
+    event = factor(event),
+    event_type = if_else(is.na(event_type), "Trim Only", event_type)
+  )
+
+# Identify the top 5 most frequent event types
+top_5_events <- summarized_lame_events |> 
+  group_by(event_type) |> 
+  summarise(total_count = sum(count_rows)) |> 
+  arrange(desc(total_count)) |> 
+  slice_head(n = 5) |> 
+  pull(event_type)
+
+# Filter dataset to include only top 5 event types
+summarized_lame_events <- summarized_lame_events |> 
+  filter(event_type %in% top_5_events)
+
+# Plot stacked bar graph with 30-day tick marks on x-axis
+ggplot(summarized_lame_events, aes(x = dim_30, y = count_rows, fill = event_type)) +
+  geom_col(width = 14, position = "stack") +  # Use geom_col for numeric x-axis
+  scale_fill_viridis_d() +  # Colorblind-friendly palette
+  scale_x_continuous(breaks = seq(0, max(summarized_lame_events$dim_30), by = 90)) +  # Tick marks every 30 days
+  theme_minimal(base_size = 14) +
+  facet_wrap(vars(event_type), ncol = 3, scales = "free_y") +  # Separate facets for each event
+  labs(
+    title = "Stacked Bar Graph of Lameness Events by Days in Milk",
+    x = "Days in Milk",
+    y = "Count of Events",
+    fill = "Event Type"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels for readability
+    panel.grid.major = element_line(color = "gray80", size = 0.3),  # Thinner grid lines
+    panel.grid.minor = element_blank(),  # Remove minor grid lines
+    strip.text = element_text(size = 14, face = "bold"),
+    legend.position = "right"
+  )
+```
+
+```{r}
+#| label: lame by month
+monthly_lame_events <- lame_data |>
+  mutate(
+    date_event = as.Date(date_event),
+    month = floor_date(date_event, "month")
+  ) |>
+  group_by(month, protocols_remaining_after_numbers1) |>
+  summarise(count_rows = n(), .groups = "drop") |>
+  mutate(
+    event_type = if_else(
+      is.na(protocols_remaining_after_numbers1),
+      "Trim Only",
+      as.character(protocols_remaining_after_numbers1)
+    ),
+    event_type = factor(event_type)
+  )
+
+top_5_monthly <- monthly_lame_events |>
+  group_by(event_type) |>
+  summarise(total_count = sum(count_rows), .groups = "drop") |>
+  arrange(desc(total_count)) |>
+  slice_head(n = 5) |>
+  pull(event_type)
+
+monthly_lame_events <- monthly_lame_events |>
+  filter(event_type %in% top_5_monthly)
+
+ggplot(monthly_lame_events, aes(x = month, y = count_rows, fill = event_type)) +
+  geom_col() +
+  scale_fill_viridis_d() +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Top 5 Lameness Events by Month",
+    x = "Month",
+    y = "Number of Events",
+    fill = "Event Type"
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "right"
+  )
+
+```
+
+NA exploration
+
+```{r}
+#| label: NA
+# put your code to explore NA's here and name it na_lame_event so the code
+# below will work
+na_lame_events <- lame_events |> 
+  count(is.na(remark), is.na(locate_lesion), is.na(date_event))
+
+# we will learn better ways to show tables later but for now this works
+rmarkdown::paged_table(na_lame_events)
+
+```
+
+Extension
+
+For this week extension create a template for your future reports
+
+-   customize the report to use your business' logo
+
+-   use a theme/font colour scheme you prefer
