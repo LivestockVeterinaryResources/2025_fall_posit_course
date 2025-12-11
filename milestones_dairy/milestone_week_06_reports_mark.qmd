@@ -28,6 +28,8 @@ events_formatted <- read_parquet(
 
 # filter this data for LAME and TRIM in the event variable
 
+# write_csv(events_formatted,"excel_excuses.csv")
+
 
 ```
 
@@ -66,6 +68,40 @@ Use the protocols_letters1 variable to get the information about the
     lameness/trim protocols used.
 
 ```{r}
+#| label: Extract LAME and TRIM
+#| 
+lame_trim <- events_formatted %>%
+  # Create 'lame_trim' to extract these specific events
+  filter(lact_group_basic != "Heifer",
+         event %in% c("LAME", "TRIM")) %>%
+  mutate(year_event = year(date_event),
+         floordate_date = floor_date(date_event, "month"),
+         floordate_month = month(date_event, label = TRUE, abbr = FALSE))
+
+# ==============================================================================
+# Stacked bar graph of treatment protocols - ALL treatments
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "LAME", 
+         year_event %in% c(2024, 2025)) %>% 
+  ggplot(aes(x = floordate_date, fill = protocols)) +
+  geom_bar(color = "black") +   # adds black border around each stacked cell
+  labs(
+    x = "Month/Year", 
+    y = "Number of Treatments",
+    title = "Treatment Protocols by Month/Year",
+    caption = "Representation by Time Interval, ALL cases"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 180), 
+    breaks = seq(0, 180, by = 20),
+    labels = paste0(seq(0, 180, by = 20), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  ) +
+  scale_fill_brewer(palette = "BrBG")       # references the 9-class ColorBrewer BrBG palette
 
 # put your graph code here
 
