@@ -54,6 +54,7 @@ deno365<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time
 There are multiple denominator types to choose from in this file. Write some code in the chunk below to list the names of the different values in the deno_type variable
 
 ```{r}
+View(deno365)
 
 ```
 
