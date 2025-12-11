@@ -156,6 +156,7 @@ trim_events <-
             )) %>% 
   select(lact_group, dim_event, floordate_month, remark, protocols, locate_lesion, date_event, trim_need, event_count_lact, event_count_animal, trim_group, event)  %>% 
   filter(trim_need != "Routine")
+  ungroup() 
 
 trim_events %>%
   ggplot(aes(x = dim_event, fill = trim_need)) +
@@ -177,8 +178,13 @@ trim_events %>%
 
 ```{r}
 
-trim_events %>% 
-  ggplot(aes(x = floordate_month, dim_event, fill = lact_group, bins= 10)) +
+events %>% 
+  mutate(year_event = year(date_event)) %>% 
+  filter(event == "LAME",
+         lact_group != "Heifer",
+         year_event == c(2021,2022,2023,2024,2025)) %>% 
+  group_by(year_event, protocols) %>% 
+  ggplot(aes(x = year_event, protocols, fill = lact_group, bins= 10)) +
   geom_tile() 
   # +
   # labs(
@@ -189,5 +195,39 @@ trim_events %>%
 
 ## you can set categorical variables to re-order by a numeric variable inside the ggplot() - reorder = "variable" I think 
 
+```
+
+```{r}
+#| label: heatmap_count, !!Mark's Graph!! 
+# ==============================================================================
+# Heat map of mastitis cases by treatment / year
+# ==============================================================================
+
+events %>%
+  mutate(
+    year_event = year(date_event)) %>% 
+  filter(event == "MAST", 
+         lact_group != "Heifer",
+         event_count_animal == 1,
+         year_event %in% c(2023, 2024, 2025)) %>%
+  group_by(year_event, protocols) %>%
+  summarise(case_count = n(), .groups = "drop") %>%   # count cases
+  group_by(year_event) %>% 
+  mutate(pct_cases = case_count / sum(case_count, na.rm = TRUE) * 100) %>%  # percentage of cases
+  ungroup() %>%
+  ggplot(aes(x = factor(year_event), y = protocols, fill = pct_cases)) +
+  geom_tile(alpha = 0.7, color = "black") +
+  geom_text(aes(label = case_count),   # show raw counts in each cell
+            color = "black", size = 4) +
+  scale_fill_distiller(palette = "YlOrRd", direction = 1) +   # Provides the heat mapping fill
+  labs(
+    x = "Year",
+    y = "Treatment Protocols",
+    fill = "Case Count",
+    title = "Number of Cases by Year and Protocol",
+    caption = "Filtered: MAST events, non-Heifers, 1st cases, years 2023–2025"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
 

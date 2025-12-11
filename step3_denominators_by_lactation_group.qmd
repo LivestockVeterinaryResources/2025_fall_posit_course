@@ -84,7 +84,7 @@ This creates a list of calendar days from 1200 days prior to the most recent eve
 It exceeds the days back slightly (see "get_factor_for_days_back") to ensure a full 3 years of time_periods.
 
 ```{r}
-get_factor_for_days_back<-ceiling(1200/params$denominator_granularity)
+get_factor_for_days_back<-ceiling(1200/params$denominator_granularity) #ceiling rounds up 
 
 #get a list of dates for 1200 days before the last event
 calendar<-tibble(date_calendar = seq.Date(
