@@ -1,9 +1,37 @@
 ---
-title: "Week 6 Milestone Template Report"
+title: "Milestone Week-6 Template"
+author: "Kirkpatrick & Son Dairy Data"
+date: "11 December 2025"
+
 format:
-  html
-embed-resources: true
+  html:
+    logo: logo_b.png   # path to logo file
+editor: visual
+echo: false
 ---
+
+# Health Reporting Template
+
+DC305 EVENTS data has been extracted. This report focuses on the EVENTS of LAME and TRIM.
+
+Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+
+## Running Code
+
+When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+
+```{r}
+1 + 1
+```
+
+You can add options to executable code like this
+
+```{r}
+#| echo: false
+2 * 2
+```
+
+The `echo: false` option disables the printing of code (only output is displayed).
 
 ```{r}
 #| label: setup
@@ -25,47 +53,8 @@ pacman::p_load(
 # data you will need for this report
 events_formatted <- read_parquet(
   '../data/intermediate_files/events_formatted.parquet')
-
-# filter this data for LAME and TRIM in the event variable
-
-# write_csv(events_formatted,"excel_excuses.csv")
-
-
 ```
 
-```{=html}
-
-<!-- The objective of this milestone is to start the creation of a
-template you can use for reproducible reports going forward. Most of
-this milestone will focus on customizing the look of the report that you
-can use for future reports. We will also explore of the lameness data.We will use this template in future milestones.
-A few notes:  
-1) The logo contains a clickable link 
-2) to use an image put it in the image folder (the one in the report is called 
-  logo_no_background.png)
-3)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
-```
-
-Run this chuck below. It will open the example report in your browser.  You should delete this chunk in your final report
-
-```{r}
-#| label: open-html-r
-#| eval: false
-
-# 1. Define the file path
-file_path <- "images/milestone_6.htm"
-
-# 2. Open the browser
-browseURL(file_path)
-```
-
-
-Objective
-
-Explore recorded lameness/trim protocols
-
-Use the protocols_letters1 variable to get the information about the
-    lameness/trim protocols used.
 
 ```{r}
 #| label: Extract LAME and TRIM
@@ -84,7 +73,7 @@ lame_trim <- events_formatted %>%
             nchar(locate_lesion) == 2 ~ locate_lesion, # exactly 2 characters
             TRUE ~ NA_character_  ))     # fallback for missing/other cases)
 
-# unique(lame_trim$Protocols)
+# unique(lame_trim$lact_group_5)
 
 corrections <- c(     #Correct the multiple entries to group pathology
   "Trim Only" = "Trim Only",
@@ -111,8 +100,37 @@ corrections <- c(     #Correct the multiple entries to group pathology
 
 lame_trim <- lame_trim %>%
   mutate(protocols_numbers1 = recode(Protocols, !!!corrections))
+```
 
-# put your graph code here
+```{r}
+#| label: Graph LAME and TRIM
+#| 
+
+
+# Ensure lact_group_5 has the correct order
+lame_trim$lact_group_5 <- factor(
+  lame_trim$lact_group_5,
+  levels = c("LACT 1", "LACT 2", "LACT 3", "LACT 4", "LACT 5+")
+)
+
+lame_trim %>%
+  filter(event == "LAME",
+         year(floordate_date) >= 2023) %>%   # filter from 2023 to current
+  ggplot(aes(x = floordate_date, fill = lact_group)) +
+  geom_bar(color = "black") +
+  labs(
+    x = "Month/Year",
+    y = "Case Count",
+    title = "LAME Case Counts by Month/Year",
+    caption = "All cases by calendar date",
+    fill = "Lactation Group"
+  ) +
+  facet_wrap(~ lact_group, ncol = 1, scales = "fixed") +  # vertical panels, shared y-axis
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
 
 # ==============================================================================
 # Stacked bar graph of treatment protocols - ALL treatments
@@ -138,28 +156,5 @@ lame_trim %>%
     plot.title = element_text(hjust = 0.5)  # centers the title
   ) +
   scale_fill_brewer(palette = "BrBG")       # references the 9-class ColorBrewer BrBG palette
-
-
-
 ```
 
-NA exploration
-
-```{r}
-#| label: NA exploration
-
-# put your code to explore NA's here and name it na_lame_event so the code
-# below will work
-
-# we will learn better ways to show tables later but for now this works
-# rmarkdown::paged_table(na_lame_events)
-
-```
-
-Extension
-
-For this week extension create a template for your future reports
-
--   customize the report to use your business' logo
-
--   use a theme/font colour scheme you prefer
