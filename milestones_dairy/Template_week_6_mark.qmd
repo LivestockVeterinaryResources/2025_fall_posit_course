@@ -1,7 +1,7 @@
 ---
 title: "Milestone Week-6 Template"
 author: "Kirkpatrick & Son Dairy Data"
-date: "11 December 2025"
+date: "13 December 2025"
 
 format:
   html:
@@ -14,24 +14,7 @@ echo: false
 
 DC305 EVENTS data has been extracted. This report focuses on the EVENTS of LAME and TRIM.
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
-```
-
-You can add options to executable code like this
-
-```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).
 
 ```{r}
 #| label: setup
@@ -47,7 +30,8 @@ pacman::p_load(
   lubridate,
   quarto, 
   arrow,
-  zoo
+  zoo,
+  gghalves,   # needed for half violin plots
   )
 
 # data you will need for this report
@@ -55,23 +39,34 @@ events_formatted <- read_parquet(
   '../data/intermediate_files/events_formatted.parquet')
 ```
 
+### Data processing and preparation script
 
-```{r}
+```{r echo=TRUE}
 #| label: Extract LAME and TRIM
 #| 
 lame_trim <- events_formatted %>%
-  # Create 'lame_trim' to extract these specific events
+  # Filter for relevant events
   filter(lact_group_basic != "Heifer",
          event %in% c("LAME", "TRIM")) %>%
-  mutate(year_event = year(date_event),
-         floordate_date = floor_date(date_event, "month"),
-         floordate_month = month(date_event, label = TRUE, abbr = FALSE),
-         locate_qtr = case_when(   # summarize the quarters affected
-            nchar(locate_lesion) == 8  ~ "ALL",
-            nchar(locate_lesion) == 6  ~ "3Q",
-            nchar(locate_lesion) == 4  ~ "2Q",
-            nchar(locate_lesion) == 2 ~ locate_lesion, # exactly 2 characters
-            TRUE ~ NA_character_  ))     # fallback for missing/other cases)
+  # Sort before cumulative count
+  arrange(id_animal, lact_number, event, date_event) %>%
+  # Group by animal, lactation, and event
+  group_by(id_animal, lact_number, event) %>%
+  mutate(
+    year_event = year(date_event),
+    floordate_date = floor_date(date_event, "month"),
+    floordate_month = month(date_event, label = TRUE, abbr = FALSE),
+    locate_qtr = case_when(
+      nchar(locate_lesion) == 8 ~ "ALL",
+      nchar(locate_lesion) == 6 ~ "3Q",
+      nchar(locate_lesion) == 4 ~ "2Q",
+      nchar(locate_lesion) == 2 ~ locate_lesion,
+      TRUE ~ NA_character_
+    ),
+    # cumulative case count per group
+    SEQ = row_number()
+  ) %>%
+  ungroup()
 
 # unique(lame_trim$lact_group_5)
 
@@ -102,8 +97,13 @@ lame_trim <- lame_trim %>%
   mutate(protocols_numbers1 = recode(Protocols, !!!corrections))
 ```
 
+## LAME Evaluation
+
+
+### What are the historical (ALL) case counts by LGRP(3+)?
+
 ```{r}
-#| label: Graph LAME and TRIM
+#| label: Bar Graph LGRP case counts
 #| 
 
 
@@ -112,6 +112,10 @@ lame_trim$lact_group_5 <- factor(
   lame_trim$lact_group_5,
   levels = c("LACT 1", "LACT 2", "LACT 3", "LACT 4", "LACT 5+")
 )
+
+# ==============================================================================
+# Vertical bar graphs to indicate case count by calendar month
+# ==============================================================================
 
 lame_trim %>%
   filter(event == "LAME",
@@ -131,9 +135,220 @@ lame_trim %>%
     plot.title = element_text(hjust = 0.5),
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
+```
+
+### What is the distribution of ALL LAME cases?
+
+```{r}
+#| label: ALL Cases Half Violin and Boxplot
 
 # ==============================================================================
-# Stacked bar graph of treatment protocols - ALL treatments
+# Coplot of half violin and boxplot for ALL LAME cases - scale = count
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "LAME",
+         lact_group != "Heifer", year(floordate_date) >= 2023) %>%   # filter only LAME events
+  ggplot(aes(x = factor(year_event), y = dim_event)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA) +   # boxplot
+  geom_half_violin(side = "l", fill = "orange", alpha = 0.6, scale = "count") +  # half violin on left
+  labs(
+    x = "Year of Event",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ LAME Event by Year",
+    caption = "Representation by COUNT (ALL cases)"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### What is the distribution of FIRST LAME cases?
+
+```{r}
+#| label: FIRST Cases Half Violin and Boxplot
+
+# ==============================================================================
+# Coplot of half violin and boxplot for FIRST LAME cases - scale = count
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "LAME",
+         lact_group != "Heifer", year(floordate_date) >= 2023, SEQ == 1) %>%   # filter only LAME events
+  ggplot(aes(x = factor(year_event), y = dim_event)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA) +   # boxplot
+  geom_half_violin(side = "l", fill = "orange", alpha = 0.6, scale = "count") +  # half violin on left
+  labs(
+    x = "Year of Event",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ LAME Event by Year",
+    caption = "Representation by COUNT, (1st cases)"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### By LGRP, what is the distribution of FIRST LAME cases?
+
+```{r}
+#| label: LGRP 1st Cases Half Violin and Boxplot
+#| 
+
+# ==============================================================================
+# Coplot of half violin and boxplot for 1st LAME cases, 2024 + 2025, by LGRP - scale = count
+# ==============================================================================
+
+my_fills <- c(
+  "LACT 1" = "lightblue",
+  "LACT 2" = "lightgreen",
+  "LACT 3+" = "tomato"
+)
+
+lame_trim %>%
+  filter(event == "LAME",
+         lact_group != "Heifer",
+         SEQ == 1,
+         year_event %in% c(2024, 2025)) %>% 
+  ggplot(aes(x = lact_group, y = dim_event, fill = lact_group)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.6) +   # boxplot parameters
+  geom_half_violin(side = "l", scale = "count") +  # half violin on left
+  labs(
+    x = "1st LAME, LGRP demographics (2024-2025)",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ LAME Event by Lactation Group",
+    caption = "Representation by LGRP, 1st cases & COUNT"
+  ) +
+  scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  scale_fill_manual(values = my_fills) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### By LGRP what is the distribution of ALL LAME cases?
+
+```{r}
+#| label: LGRP ALL Cases Half Violin and Boxplot
+#| 
+
+# ==============================================================================
+# Coplot of half violin and boxplot for ALL LAME cases, 2024 + 2025, by LGRP - scale = count
+# ==============================================================================
+
+my_fills <- c(
+  "LACT 1" = "lightblue",
+  "LACT 2" = "lightgreen",
+  "LACT 3+" = "tomato"
+)
+
+lame_trim %>%
+  filter(event == "LAME",
+         lact_group != "Heifer",
+         year_event %in% c(2024, 2025)) %>% 
+  ggplot(aes(x = lact_group, y = dim_event, fill = lact_group)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.6) +   # boxplot parameters
+  geom_half_violin(side = "l", scale = "count") +  # half violin on left
+  labs(
+    x = "ALL LAME, LGRP demographics (2024-2025)",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ LAME Event by Lactation Group",
+    caption = "Representation by LGRP, ALL cases & COUNT"
+  ) +
+  scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  scale_fill_manual(values = my_fills) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### By LGRP, per treated cow what is the average case count?
+
+```{r}
+#| label: Average number of Lame Cases
+#| 
+
+# ==============================================================================
+# Plot of average number of treatments by LGRP(3+) and year
+# ==============================================================================
+
+
+# Define custom fills
+my_fills <- c(
+  "LACT 1" = "lightblue",
+  "LACT 2" = "lightgreen",
+  "LACT 3+" = "tomato"
+)
+
+# Prepare the summarized data
+lame_summary <- lame_trim %>%
+  filter(event == "LAME",
+         year_event %in% c(2023, 2024, 2025)) %>%
+  group_by(year_event, lact_group) %>%
+  # Summarize the SEQ column for LAME cases
+  summarise(
+    mean_SEQ = mean(SEQ, na.rm = TRUE),
+    sd_SEQ   = sd(SEQ, na.rm = TRUE),
+    n        = n(),
+    .groups  = "drop"
+  ) %>%
+  # Determine an 80% confidence interval
+  mutate(
+    se = sd_SEQ / sqrt(n),
+    # 80% confidence interval uses z ≈ 1.28
+    ci = 1.28 * se
+  )
+
+# Plot with black borders and mean labels
+ggplot(lame_summary, aes(x = factor(year_event),
+                         y = mean_SEQ,
+                         fill = lact_group)) +
+  geom_col(position = position_dodge(width = 0.9),
+           colour = "black") +
+  geom_errorbar(aes(ymin = mean_SEQ - ci,
+                    ymax = mean_SEQ + ci),
+                width = 0.2,
+                position = position_dodge(width = 0.9)) +
+  geom_text(aes(label = round(mean_SEQ, 2)),   # display mean values
+            position = position_dodge(width = 0.9),
+            vjust = -1.2, size = 3.5) +        # adjust vertical placement
+  scale_fill_manual(values = my_fills) +
+  labs(
+    x = "Year",
+    y = "Average number of LAME cases (SEQ)",
+    fill = "Lactation Group",
+    title = "Average LAME Cases by Year and Lactation Group (2023–2025)",
+    caption = "Average cases per treated cow"
+  ) +
+  theme_minimal()
+```
+
+### What are the historical identified LAME lesions (ALL)?
+
+```{r}
+#| label: LAME identification ALL treatments
+#| 
+
+# ==============================================================================
+# Stacked bar graph of recorded treatment protocols - ALL treatments
 # ==============================================================================
 
 lame_trim %>%
@@ -156,5 +371,319 @@ lame_trim %>%
     plot.title = element_text(hjust = 0.5)  # centers the title
   ) +
   scale_fill_brewer(palette = "BrBG")       # references the 9-class ColorBrewer BrBG palette
+```
+
+### What are the historical identified LAME lesions (FIRST)?
+
+```{r}
+#| label: LAME identification FIRST treatments
+#| 
+
+# ==============================================================================
+# Stacked bar graph of recorded treatment protocols - 1st treatments
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "LAME", 
+         year_event %in% c(2024, 2025), SEQ == 1) %>% 
+  ggplot(aes(x = floordate_date, fill = protocols_numbers1)) +
+  geom_bar(color = "black") +   # adds black border around each stacked cell
+  labs(
+    x = "Month/Year", 
+    y = "Number of Treatments",
+    title = "Treatment Protocols by Month/Year",
+    caption = "Representation by Calendar Date, 1st cases"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 180), 
+    breaks = seq(0, 180, by = 20),
+    labels = paste0(seq(0, 180, by = 20), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  ) +
+  scale_fill_brewer(palette = "BrBG")       # references the 9-class ColorBrewer BrBG palette
+```
+
+### What are the historical identified LAME LIMBS (ALL)?
+
+```{r}
+#| label: LIMB assignments ALL treatments
+#| 
+
+# ==============================================================================
+# Stacked bar graph of recorded QTR = FOOT Assignment - ALL treatments
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "LAME", 
+         year_event %in% c(2024, 2025)) %>% 
+  ggplot(aes(x = floordate_date, fill = locate_qtr)) +
+  geom_bar(color = "black") +   # adds black border around each stacked cell
+  labs(
+    x = "Month/Year", 
+    y = "Number of Treatments",
+    title = "Treatment Limbs by Month/Year",
+    caption = "Representation by Calendar Date, ALL cases"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 180), 
+    breaks = seq(0, 180, by = 20),
+    labels = paste0(seq(0, 180, by = 20), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  ) +
+  scale_fill_brewer(palette = "BrBG")       # references the 9-class ColorBrewer BrBG palette
+
+```
+
+## TRIM Evaluation
+
+### What are the historical (ALL) case counts by LGRP(3+)?
+
+```{r}
+#| label: Graph TRIM case counts by LGRP
+#| 
+
+
+# Ensure lact_group_5 has the correct order
+lame_trim$lact_group_5 <- factor(
+  lame_trim$lact_group_5,
+  levels = c("LACT 1", "LACT 2", "LACT 3", "LACT 4", "LACT 5+")
+)
+
+# ==============================================================================
+# Vertical bar graphs to indicate case count by calendar month
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "TRIM",
+         year(floordate_date) >= 2023) %>%   # filter from 2023 to current
+  ggplot(aes(x = floordate_date, fill = lact_group)) +
+  geom_bar(color = "black") +
+  labs(
+    x = "Month/Year",
+    y = "Case Count",
+    title = "TRIM Case Counts by Month/Year",
+    caption = "All cases by calendar date",
+    fill = "Lactation Group"
+  ) +
+  facet_wrap(~ lact_group, ncol = 1, scales = "fixed") +  # vertical panels, shared y-axis
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+```
+
+### What is the distribution of ALL TRIM cases?
+
+```{r}
+#| label: Distribution of ALL TRIM case counts
+#| 
+
+# ==============================================================================
+# Coplot of half violin and boxplot for ALL TRIM cases - scale = count
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "TRIM",
+         lact_group != "Heifer", year(floordate_date) >= 2023) %>%   # filter only TRIM events
+  ggplot(aes(x = factor(year_event), y = dim_event)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA) +   # boxplot
+  geom_half_violin(side = "l", fill = "lightgreen", alpha = 0.6, scale = "count") +  # half violin on left
+  labs(
+    x = "Year of Event",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ TRIM Event by Year",
+    caption = "Representation by COUNT (ALL cases)"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### What is the distribution of FIRST TRIM cases?
+
+```{r}
+#| label: Distribution of FIRST TRIM case counts
+#| 
+
+# ==============================================================================
+# Coplot of half violin and boxplot for FIRST TRIM cases - scale = count
+# ==============================================================================
+
+lame_trim %>%
+  filter(event == "TRIM",
+         lact_group != "Heifer", year(floordate_date) >= 2023, SEQ == 1) %>%   # filter only LAME events
+  ggplot(aes(x = factor(year_event), y = dim_event)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA) +   # boxplot
+  geom_half_violin(side = "l", fill = "lightgreen", alpha = 0.6, scale = "count") +  # half violin on left
+  labs(
+    x = "Year of Event",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ TRIM Event by Year",
+    caption = "Representation by COUNT, (1st cases)"
+  ) +
+    scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### LGRP: What is the distribution of FIRST TRIM cases?
+
+```{r}
+#| label: Distribution of FIRST TRIM case counts by LGRP
+#| 
+
+# ==============================================================================
+# Coplot of half violin and boxplot for 1st TRIM cases, 2024 + 2025, by LGRP - scale = count
+# ==============================================================================
+
+my_fills <- c(
+  "LACT 1" = "lightblue",
+  "LACT 2" = "lightgreen",
+  "LACT 3+" = "tomato"
+)
+
+lame_trim %>%
+  filter(event == "TRIM",
+         lact_group != "Heifer",
+         SEQ == 1,
+         year_event %in% c(2024, 2025)) %>% 
+  ggplot(aes(x = lact_group, y = dim_event, fill = lact_group)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.6) +   # boxplot parameters
+  geom_half_violin(side = "l", scale = "count") +  # half violin on left
+  labs(
+    x = "1st TRIM, LGRP demographics (2024-2025)",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ TRIM Event by Lactation Group",
+    caption = "Representation by LGRP, 1st cases & COUNT"
+  ) +
+  scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  scale_fill_manual(values = my_fills) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### LGRP: What is the distribution of ALL TRIM cases?
+
+```{r}
+#| label: Distribution of ALL TRIM case counts by LGRP
+#| 
+
+# ==============================================================================
+# Coplot of half violin and boxplot for ALL TRIM cases, 2024 + 2025, by LGRP - scale = count
+# ==============================================================================
+
+my_fills <- c(
+  "LACT 1" = "lightblue",
+  "LACT 2" = "lightgreen",
+  "LACT 3+" = "tomato"
+)
+
+lame_trim %>%
+  filter(event == "TRIM",
+         lact_group != "Heifer",
+         year_event %in% c(2024, 2025)) %>% 
+  ggplot(aes(x = lact_group, y = dim_event, fill = lact_group)) +
+  geom_boxplot(width = 0.3, outlier.shape = NA, alpha = 0.6) +   # boxplot parameters
+  geom_half_violin(side = "l", scale = "count") +  # half violin on left
+  labs(
+    x = "ALL TRIM, LGRP demographics (2024-2025)",
+    y = "DIM @ Event Distribution",
+    title = "Distribution of DIM @ TRIM Event by Lactation Group",
+    caption = "Representation by LGRP, ALL cases & COUNT"
+  ) +
+  scale_y_continuous(
+    limits = c(0, 420), 
+    breaks = seq(0, 420, by = 30),
+    labels = paste0(seq(0, 420, by = 30), "")
+  ) +
+  scale_fill_manual(values = my_fills) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+```
+
+### LGRP: What is the average number of trim cases / treated cow?
+
+```{r}
+#| label: Average number of TRIMs by LGRP
+#| 
+
+# ==============================================================================
+# Plot of average number of treatments by LGRP(3+) and year
+# ==============================================================================
+
+
+# Define custom fills
+my_fills <- c(
+  "LACT 1" = "lightblue",
+  "LACT 2" = "lightgreen",
+  "LACT 3+" = "tomato"
+)
+
+# Prepare the summarized data
+lame_summary <- lame_trim %>%
+  filter(event == "TRIM",
+         year_event %in% c(2023, 2024, 2025)) %>%
+  group_by(year_event, lact_group) %>%
+  # Summarize the SEQ column for TRIM cases
+  summarise(
+    mean_SEQ = mean(SEQ, na.rm = TRUE),
+    sd_SEQ   = sd(SEQ, na.rm = TRUE),
+    n        = n(),
+    .groups  = "drop"
+  ) %>%
+  # Determine an 80% confidence interval
+  mutate(
+    se = sd_SEQ / sqrt(n),
+    # 80% confidence interval uses z ≈ 1.28
+    ci = 1.28 * se
+  )
+
+# Plot with black borders and mean labels
+ggplot(lame_summary, aes(x = factor(year_event),
+                         y = mean_SEQ,
+                         fill = lact_group)) +
+  geom_col(position = position_dodge(width = 0.9),
+           colour = "black") +
+  geom_errorbar(aes(ymin = mean_SEQ - ci,
+                    ymax = mean_SEQ + ci),
+                width = 0.2,
+                position = position_dodge(width = 0.9)) +
+  geom_text(aes(label = round(mean_SEQ, 2)),   # display mean values
+            position = position_dodge(width = 0.9),
+            vjust = -1.2, size = 3.5) +        # adjust vertical placement
+  scale_fill_manual(values = my_fills) +
+  labs(
+    x = "Year",
+    y = "Average number of TRIM cases (SEQ)",
+    fill = "Lactation Group",
+    title = "Average TRIM Cases by Year and Lactation Group (2023–2025)",
+    caption = "Average cases per treated cow"
+  ) +
+  theme_minimal()
+
+
+```
+
 ```
 
