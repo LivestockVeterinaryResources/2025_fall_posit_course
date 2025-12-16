@@ -19,8 +19,6 @@ echo: false
 warning: false
 ---
 
-
-
 # LAME & TRIM Reporting Template
 
 DC305 EVENTS data has been extracted. This report focuses on the EVENTS of LAME and TRIM.
@@ -57,9 +55,9 @@ lame_trim <- events_formatted %>%
   filter(lact_group_basic != "Heifer",
          event %in% c("LAME", "TRIM")) %>%
   # Sort before cumulative count
-  arrange(id_animal, lact_number, event, date_event) %>%
+  arrange(id_animal_lact, event, date_event) %>%
   # Group by animal, lactation, and event
-  group_by(id_animal, lact_number, event) %>%
+  group_by(id_animal_lact, event) %>%
   mutate(
     year_event = year(date_event),
     floordate_date = floor_date(date_event, "month"),
@@ -103,6 +101,8 @@ corrections <- c(     #Correct the multiple entries to group pathology
 
 lame_trim <- lame_trim %>%
   mutate(protocols_numbers1 = recode(Protocols, !!!corrections))
+
+# write_csv(lame_trim,"excel_excuses.csv")
 ```
 
 ## LAME Evaluation
