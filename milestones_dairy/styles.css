@@ -1,0 +1,45 @@
+/* Full-width banner */
+.banner {
+  display: flex;
+  align-items: center;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: 1.5rem 2.5rem;
+  background-color: #f7f7f7;
+  border-bottom: 1px solid #ddd;
+}
+
+/* Logo */
+.banner-logo img {
+  height: 90px;
+  width: auto;
+  margin-right: 1.75rem;
+}
+
+/* Text container */
+.banner-text {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Title */
+.banner-title {
+  font-size: 2rem;
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* Subtitle */
+.banner-subtitle {
+  font-size: 1.2rem;
+  margin: 0.25rem 0 0.5rem 0;
+  color: #555;
+}
+
+/* Author + date */
+.banner-meta {
+  font-size: 0.9rem;
+  color: #777;
+  margin: 0;
+}

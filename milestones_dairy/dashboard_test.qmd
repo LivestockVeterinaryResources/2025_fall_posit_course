@@ -1,0 +1,102 @@
+---
+title: "My first Quarto dashboard"
+format: dashboard
+---
+
+```{r, include=FALSE}
+library(tidyverse)
+library(arrow)
+
+source('../functions/fxn_add_event_counts.R')
+
+events<-read_parquet("../data/intermediate_files/events_formatted.parquet")
+
+#clean up disease here
+disease<-events%>%filter(event %in% c('LAME', 'TRIM', 'JOINT'))%>%
+  mutate(protocols_letters1 = replace_na(protocols_letters1, ''))%>%
+  mutate(disease = case_when(
+    event %in% c('TRIM', 'JOINT')~event, 
+    str_detect(protocols_letters1, 'Abs|Abc')~'Abs', 
+    str_detect(protocols_letters1, 'Foot')~'Footrot', 
+    event %in% 'LAME'~protocols_letters1,
+    TRUE~'Unknown'
+  ))%>%
+  mutate(treatment =  str_sub(remark_letters1, 1, 3))
+
+deno<-read_parquet('../data/intermediate_files/denominator_by_lact_group_time_period365.parquet')%>%
+  filter(deno_type %in% 'dop_lact_3+')%>%
+  mutate(day_of_phase_group = factor(day_of_phase_group, 
+                                     levels = c("-Inf to 0",  "0 to 29","30 to 59", "60 to 89",   "90 to 119",
+                                                "120 to 149", "150 to 179", "180 to 209", "210 to 239", "240 to 269",
+                                                "270 to 299",    "300 to 329", "330 to 359", "360 to 389",
+                                                "390 to 419",  "390 to Inf",  "420 to 449",  "450 to 479",  "480 to Inf"  )))
+
+
+```
+
+## Denominator Patterns
+
+```{r}
+ggplot(deno%>% filter(`Lactation Group` %in% 'Heifer'))+
+  geom_bar(aes(x = day_of_phase_group, y = ct_animal_time_periods, fill = `Lactation Group`), stat = 'identity')+
+  facet_grid(`Lactation Group`~date_time_period_start, scales = 'free')+
+  coord_flip()
+
+```
+
+
+
+```{r}
+#| title: What day of phase does disease occur?
+
+recent_disease_summary<-disease%>%
+  mutate(Year = floor_date(date_event, unit = 'year'))%>%
+   mutate(maxYear = max(Year))%>%
+    filter(Year == maxYear)%>%
+  group_by(location_event, event, disease, treatment)%>%
+  summarize(ct_events = sum(n()), 
+            list_remarks = paste0(sort(unique(remark)), collapse = ','),
+            list_remarks1 = paste0(sort(unique(remark_letters1)), collapse = ','),
+            list_protocols = paste0(sort(unique(protocols)), collapse = ','),
+            list_protocols1 = paste0(sort(unique(protocols_letters1)), collapse = ','))%>%
+  ungroup()
+
+common_disease<-disease%>%
+    mutate(Year = floor_date(date_event, unit = 'year'))%>%
+    mutate(maxYear = max(Year))%>%
+    filter(Year == maxYear)%>%
+    group_by(disease)%>%
+  summarize(ct_events = sum(n()))%>%
+  ungroup()%>%
+  filter(ct_events>50)
+
+
+list_disease<-sort(unique(common_disease$disease))
+for (i in seq_along(list_disease)){
+ 
+
+p<-ggplot(disease%>%
+            filter(disease %in% common_disease$disease)%>%
+            filter(disease %in% list_disease[[i]]))+
+  geom_density(aes(x = dim_event))+
+  geom_bar(aes(x = dim_event))+
+  facet_grid(lact_group~location_event, scales = 'free')+
+  labs(title = paste0(list_disease[[i]]))
+
+print(p)
+
+}
+
+```
+
+```{r}
+#| title: What day of phase does disease occur?
+ggplot(mpg, aes(x = drv)) +
+  geom_bar()
+```
+
+```{r}
+#| title: What are the trends over time?
+
+```
+
