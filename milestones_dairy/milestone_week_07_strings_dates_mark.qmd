@@ -43,6 +43,10 @@ events_formatted_all <- read_parquet(
          
 solution <- readr::read_rds("data_milestones/solutions_week_07.rds")
 
+# =========================================================================
+# Survey commands
+# =========================================================================
+
 # create variables for inline code
 # write_csv(events_formatted_all,"excel_excuses.csv")
 # events_formatted_all
@@ -53,6 +57,10 @@ solution <- readr::read_rds("data_milestones/solutions_week_07.rds")
 # unique(events_formatted_all$Event)
 # names(solution_data)
 # str(solution_data)
+# unique(events_formatted_all$LACT)
+# unique(solution_data$date_event)
+# unique(solution$remark_letters1)
+# unique(solution$protocols_letters1)
 
 
 ```
@@ -96,9 +104,14 @@ Your objective is to recreate the solution dataset by doing the following with t
 
 # put your code here to create the parsed variables. name it solution_data
 
-# extract herd ID information and concatenate with ID and BDAT.
+# =========================================================================
+# Data cleaning and conversion.  Create solution_data
+# =========================================================================
+
+
 solution_data <- events_formatted_all %>%
   mutate(
+    # extract herd ID information and concatenate with ID and BDAT.
     id_animal = str_c(
       str_sub(source_file_path, start = 18, end = 53),
       ID,
@@ -115,13 +128,22 @@ solution_data <- events_formatted_all %>%
     date_event = if_else(Date == "00000000", NA, mdy(Date)),
     # Convert LACT to numeric lact_number
     lact_number = as.numeric(LACT),
-    # Extract leading letters from Remark
-    remark_letters1 = str_extract(Remark, "^[A-Za-z]+"),
-    # Extract leading letters from Protocols
-    protocols_letters1 = str_extract(Protocols, "^[A-Za-z]+"),
-    # Create location_event by taking first 5 chars of id_animal and prefixing with "Herd "
+    # Extract leading letters from Remark (skip non-letters at start)
+    remark_letters1 = str_extract(
+      str_remove(Remark, "^[^A-Za-z]+"),
+      "^[A-Za-z]+"
+    ),
+    # Extract leading letters from Protocols (skip non-letters at start)
+    protocols_letters1 = str_extract(
+      str_remove(Protocols, "^[^A-Za-z]+"),
+      "^[A-Za-z]+"
+    ),
+    # Create location_event by taking first 5 chars of 'id_animal' and prefixing with "Herd "
     location_event = str_c("Herd ", str_sub(id_animal, start = 1, end = 5))
   ) %>%
+  # rename Event -> event
+  rename(event = Event) %>%
+  # select the columns of interest to complete 'solution_data'
   select(
     id_animal,
     date_birth,
@@ -129,7 +151,7 @@ solution_data <- events_formatted_all %>%
     lact_number,
     date_archived,
     date_event,
-    Event,
+    event,
     remark_letters1,
     protocols_letters1,
     R,
@@ -138,17 +160,15 @@ solution_data <- events_formatted_all %>%
     location_event
   )
 
-# unique(events_formatted_all$LACT)
-# unique(solution_data$date_event)
-# unique(solution$remark_letters1)
-# unique(solution$protocols_letters1)
+
+
 
 ```
 
 ```{r}
 #| label: create-solution-data
 
-waldo::compare(solution_data, solution)
+# waldo::compare(solution_data, solution)
 
 
 
@@ -165,7 +185,23 @@ Then on the new data table.
 #| label: dim-cat-order
 #| echo: true
 
-# put your DIM category code here
+# Create 'dim_event' and 'dim_cat' columns to characterize event onset in lactation.
+solution_data <- solution_data %>%
+  mutate(
+    # calculate difference in days
+    dim_event = as.numeric(difftime(date_event, date_fresh, units = "days")),
+    
+    # categorize dim_event into bins
+    dim_cat = case_when(
+      dim_event >= 270 ~ ">270",
+      dim_event >= 211 & dim_event <= 270 ~ "211-270",
+      dim_event >= 151 & dim_event <= 210 ~ "151-210",
+      dim_event >= 91 & dim_event <= 150  ~ "91-150",
+      dim_event >= 30 & dim_event <= 90   ~ "30-90",
+      dim_event >= 0  & dim_event <= 29   ~ "<30",
+      TRUE ~ NA_character_   # catch missing values
+    )
+  )
 
 
 
@@ -194,6 +230,51 @@ Then use this function to create new variables for the lesions in your data set.
 #| echo: true
 
 # put your code for recoding the variables here
+
+# Apply the function to solution_data
+solution_data <- fxn_code_lesions(
+  solution_data,
+  event_var = event,
+  protocol_var = protocols_letters1,
+  remark_var = remark_letters1
+)
+
+# names(solution_data)
+
+# =========================================================================
+# Summarize the coded lesions for LAME & TRIM, for 2024-01-01 forward
+# =========================================================================
+
+library(dplyr)
+library(purrr)
+
+# columns to summarize
+cols_to_summarize <- c(
+  "trimonly", "sole_ulcer", "wld", "toe_ulcer", "thin", "toe",
+  "sole_fracture", "dd", "footrot", "hemorrhage", "axial", "cork",
+  "injury", "other", "inf", "noninf", "lesion"
+)
+
+# restrict dataset first
+filtered_data <- solution_data %>%
+  filter(
+    event %in% c("TRIM", "LAME"),
+    date_event >= as.Date("2024-01-01")
+  )
+
+# build summary grid
+summary_grid <- map_dfr(cols_to_summarize, function(col) {
+  tibble(
+    column = col,
+    count_0  = sum(filtered_data[[col]] == 0, na.rm = TRUE),
+    count_1  = sum(filtered_data[[col]] == 1, na.rm = TRUE),
+    count_NA = sum(is.na(filtered_data[[col]]))
+  )
+})
+
+summary_grid
+
+
 
 ```
 
