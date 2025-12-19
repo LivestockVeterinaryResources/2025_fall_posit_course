@@ -402,6 +402,44 @@ ggplot(lesion_summary, aes(x = factor(lesion, levels = rev(lesion_order)),
 
 
 
+# =========================================================================
+# Infectious vs. Non Infectious Ratio
+# =========================================================================
+
+# Summarize counts for "inf" and "noninf" by lactation group
+lesion_summary <- lesion_long %>%
+  filter(lesion %in% c("inf", "noninf")) %>%
+  group_by(lact_grp5plus, lesion) %>%
+  summarise(total = sum(count, na.rm = TRUE), .groups = "drop") %>%
+  group_by(lact_grp5plus) %>%
+  mutate(percent = total / sum(total) * 100)
+
+# Replace lesion codes with descriptive labels
+lesion_summary <- lesion_summary %>%
+  mutate(lesion = recode(lesion,
+                         "inf" = "Infectious",
+                         "noninf" = "Non-Infectious"))
+
+# Order lactation groups in natural progression
+lact_order <- c("LGRP(0)", "LGRP(1)", "LGRP(2)", "LGRP(3)", "LGRP(4)", "LGRP(5+)")
+lesion_summary <- lesion_summary %>%
+  mutate(lact_grp5plus = factor(lact_grp5plus, levels = lact_order))
+
+# Plot 100% stacked horizontal bar chart
+ggplot(lesion_summary, aes(x = lact_grp5plus, y = percent, fill = lesion)) +
+  geom_bar(stat = "identity", color = "black") +
+  coord_flip() +
+  scale_fill_manual(values = c("Infectious" = "red", "Non-Infectious" = "grey40")) +
+  geom_text(aes(label = paste0(round(percent, 1), "%")),
+            position = position_stack(vjust = 0.5), color = "white", size = 4) +
+  labs(title = "Proportion of Infectious vs Non-Infectious Lesions by Lactation Group",
+       caption = "All cases, All Lactations",
+       x = "Lactation Group",
+       y = "Percent",
+       fill = "Lesion Type") +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5))
 
 
 
