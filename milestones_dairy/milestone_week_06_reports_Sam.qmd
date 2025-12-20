@@ -1,15 +1,18 @@
 ---
-title: "Week 6 Milestone Template Report"
+title: |
+  <div style="display: flex; align-items: center; gap: 1.2rem;">
+    <img src="images/DDH.jpg" style="max-height: 110px; border-radius: 6px; padding: 4px; background-color: white;" />
+    <div style="font-size: 1.5em; font-weight: 600; color: white;">CattleMax-Initial Report</div>
+  </div>
 author: "Dakota Dairy Health"
-date: "12.13.2025 /> <br> Other Name"  
+date: "`r Sys.Date()`"  
 format:
   html:
-    logo: 
+    toc: true    
+    logo: images/DDH.jpg
 editor: visual
 echo: false
 embed-resources: true
-
-
 ---
 
 ```{r}
@@ -57,30 +60,15 @@ A few notes:
 3)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
 ```
 
-Run this chuck below. It will open the example report in your browser.  You should delete this chunk in your final report
-
-```{r}
-#| label: open-html-r
-#| eval: false
-
-# 1. Define the file path
-file_path <- "images/milestone_6.htm"
-
-# 2. Open the browser
-browseURL(file_path)
-```
-
-
 Objective
 
 Explore recorded lameness/trim protocols
 
-Use the protocols_letters1 variable to get the information about the
-    lameness/trim protocols used.
+Use the protocols_letters1 variable to get the information about the lameness/trim protocols used.
 
 ```{r}
 
-#| label: replicate_graph
+#| label:  # replicate_graph
 
   Trim_Protocol_Bar_Graph <- events_formatted %>%
   filter(event %in% c("LAME", "TRIM")) %>% 
@@ -110,6 +98,7 @@ Use the protocols_letters1 variable to get the information about the
 ```{r}
 
 #| label: count_by_remark
+#| df-print: kable
 events_formatted %>% 
   filter(event %in% c("LAME", "TRIM")) %>% 
   # filter(!(event == "LAME" & protocols_letters1 == c("Penicillin", "H"))) %>% #Filtering out responses from Lame, Trim responses still present (2 Hs)
@@ -117,11 +106,11 @@ events_formatted %>%
 
 ```
 
-
 NA exploration
 
 ```{r}
 
+#| df-print: kable
 #| label: NA?
 
 events_formatted_wide <- events_formatted %>%
@@ -174,7 +163,6 @@ For this week extension create a template for your future reports
 
 -   use a theme/font colour scheme you prefer
 
-
 ```{r}
 #| label: graphs
 #| title: Lameness by Month
@@ -188,7 +176,7 @@ For this week extension create a template for your future reports
 #   count(event, sort=TRUE)
 
 events_formatted_1 <-events_formatted %>% 
-  mutate(floordate_month = floor_date(date_event, 'months'))%>%
+  mutate(floordate_month = floor_date(date_event, 'months')) %>%
     arrange(id_animal_lact, event, date_event)%>%
     group_by(id_animal_lact, event)%>%
     mutate(event_count = 1:n())%>%
@@ -197,7 +185,6 @@ events_formatted_1 <-events_formatted %>%
 
 lame_events <- c("LAME1", "LAME2", "LAME3", "LAME4", "LAME5", "LAME6", "LAME7", "LAME8","LAME9", "LAME10") #Use strings to filter longer things 
 
-
 heat_data <- events_formatted_1 %>%
   mutate(floordate_date = floor_date(date_event, "month"),
          year = year(date_event)) %>% 
@@ -205,9 +192,9 @@ heat_data <- events_formatted_1 %>%
   group_by(id_animal_lact) %>%
   mutate(
     date_lame = as.Date(date_event),
-    num_lame = n()) %>%  # number of LAME events for this cow
-    ungroup() 
-
+    num_lame1 = n()) %>%  # number of LAME events for this cow
+  add_count(id_animal_lact, name = "num_lame") %>% 
+  ungroup() 
 
 
 events_formatted_1 <- events_formatted_1 %>% #Events_formatted not heat_data - second mutate for date_lame, different data set, different approach
@@ -234,7 +221,7 @@ mutate(
     ) 
   )
 
-heat_data <- events_formatted_1 %>% #Adding lame_plus_6mo to heat_data for heat map 
+heat_data <- heat_data %>% #Adding lame_plus_6mo to heat_data for heat map 
 mutate(
     # date 6 months after first LAME
     lame_plus_6mo = date_lame %m+% months(6),
@@ -245,16 +232,20 @@ mutate(
       date_archived > lame_plus_6mo ~ "Yes",                # archived after 6 months
       date_archived <= lame_plus_6mo ~ "No"                 # archived before 6 months
     ) 
-  )
+  ) 
+  
 
 ##Checking my work 
 heat_data %>% 
-  count(in_herd_6mo, sort=TRUE)
+  # count(in_herd_6mo, sort=TRUE) %>% 
+  count(num_lame, sort=TRUE)
 ```
 
 ```{r}
 #| label: graphs2
 #| title: Lameness by Month
+#| warning: false
+#| fig-cap: "Lameness by Lactation Group"
 
 # ##Heat Graph for Number Lame 
 # heat_data %>% 
@@ -289,25 +280,27 @@ heat_data %>%
 #   theme_minimal() +
 #   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# #Bar Graph for Retention in Herd 
-# heat_data %>% 
-#   group_by(lact_group_5) %>% 
-#   mutate(
-#     lcount_by_lact = sum(num_lame)
-#   ) %>% 
-#   ungroup() %>% 
-#   filter(year %in% c(2025,2024,2023), 
-#          lact_group != "Heifer",
-#          is.na(date_archived)) %>% 
-#          # group_by(in_herd_6mo) %>% 
-# ggplot(aes(x = year, y = lcount_by_lact, fill=lact_group_5)) +
-#   geom_boxplot() +  
-#   facet_wrap(vars(in_herd_6mo)) +
-#   scale_fill_viridis_d()               
+
+
+#Bar Graph for Retention in Herd
+heat_data %>%
+  #group_by(lact_group_5) %>%
+  mutate(
+    lcount_by_lact = sum(num_lame) #Lame count by Lactation 
+  ) %>%
+  ungroup() %>%
+  filter((lubridate::year(floordate_month) == c(2025,2024,2023)),
+         lact_group != "Heifer",
+         is.na(date_archived)) %>%
+         # group_by(in_herd_6mo) %>%
+ggplot(aes(x = lact_group_5, y = num_lame, fill=lact_group_5)) +
+  geom_boxplot() +
+  facet_wrap(vars(year)) +
+  scale_fill_viridis_d()
   
 #Heat Graph including Herd Retention
 heat_data %>%
-  filter(year %in% c(2025),
+  filter((lubridate::year(floordate_month) == 2025),
          lact_group != "Heifer") %>%
   group_by(floordate_month, lact_group_5, in_herd_6mo) %>%
   summarise(lcount_by_lact = sum(num_lame, na.rm = TRUE) / n_distinct(id_animal_lact), .groups = "drop") %>%
@@ -325,7 +318,4 @@ heat_data %>%
 
 ```
 
-
-
-```
-
+\`\`\`
