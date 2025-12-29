@@ -148,7 +148,26 @@ Then on the new data table.
 
 # put your DIM category code here
 
-
+solution_dim_cat <- solution_data |> 
+  mutate(dim_event = as.integer(difftime(date_event, 
+                                         date_fresh, units = "days"))) |> 
+  mutate(dim_cat = case_when(
+      dim_event < 30 ~ "<30",
+      dim_event <= 90 ~ "30-90",
+      dim_event <= 150 ~ "91-150",
+      dim_event <= 210 ~ "151-210",
+      dim_event <= 270 ~ "211-270",
+      dim_event > 270 ~ ">270",
+      .default = NA_character_
+    ),
+    dim_cat = fct_relevel(
+      dim_cat,
+      c(
+        "<30", "30-90",
+        "91-150", "151-210",
+        "211-270", ">270"
+      )
+    )) 
 
 ```
 
@@ -177,6 +196,13 @@ Then use this function to create new variables for the lesions in your data set.
 #| echo: true
 
 # put your code for recoding the variables here
+# 
+
+lame_data <- solution_dim_cat |> 
+  filter(event %in% c("LAME", "TRIM")) |>
+  fxn_code_lesions(protocol_var = protocols_letters1,
+                  remark_var = remark_letters1)
+
 
 ```
 
@@ -217,6 +243,43 @@ all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury",
      "Lesion Present" = "lesion"
   )
 
+# create simple function to allow re-use of graphing code
+lame_dim_graph <- function(data) {
+  
+  data |> 
+  filter(date_event >= max(date_event) - months(12)) |>
+  filter(lact_number>0) |> 
+  group_by(location_event, dim_cat) |>
+  summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE))) |> 
+  ungroup () |> 
+  pivot_longer(cols = all_of(all_lesions), 
+               names_to = "lesion", 
+               values_to = "count") |> 
+  filter(count >0) |>
+  mutate(lesion = fct_reorder(lesion, count)) |>
+  mutate(lesion = fct_recode(lesion, !!!lesion_labels)) |>
+  ggplot()+
+  geom_col(aes(y = lesion, x = count, fill = fct_rev(dim_cat)),
+           color = "white")+
+  theme_minimal()+
+  labs(title = "DIM Category",
+       x = "Count of Lesions in Lame Events",
+       fill = "",
+      y = "")+
+  scale_fill_viridis_d()+
+  guides(fill = guide_legend(nrow = 1, reverse = TRUE))+
+  theme(plot.title = element_text(
+        hjust = 0.5,
+        face = "bold", size = 12
+      ),
+    legend.position = "top",
+      legend.box = "vertical",
+      legend.title = element_text(face = "bold"))
+}  
+
+lame_plot <- lame_dim_graph(data = lame_data)
+
+lame_plot
 
   
 
@@ -232,3 +295,123 @@ For this week extension continue to create standard things would want to report
 Ideas (or hints for next week include)
 
 start doing math with dates so we can calculate time to event data (cull/repeat)
+
+```{r}
+#| label: extension
+
+# other category includes abscess and should be recoded as 
+# non_infectious
+
+# explore the other category
+lame_data_other <- lame_data |>
+  filter(other == 1) |>
+  group_by(protocols_letters1) |> 
+  #group_by(remark_letters1) |> 
+  count()
+
+lame_data_fix <- lame_data |> 
+  mutate(noninf = case_when(
+    other == 1 & str_detect(protocols_letters1, "Ab") ~ 1,
+    .default = noninf),
+    # remove other catergory if abscess is found
+    other = case_when(
+      other == 1 & str_detect(protocols_letters1, "Ab") ~ 0,
+      .default = other)
+    )
+
+lame_plot <- lame_dim_graph(data = lame_data_fix)
+
+lame_plot
+
+```
+
+# Yearly Rates
+
+```{r}
+#| label: yearly-rates
+
+# to get count of last year
+deno_365 <- read_parquet(
+  '../data/intermediate_files/denominator_by_lact_group_time_period365.parquet') |> 
+  filter(`Lactation Group` == "LACT > 0" & 
+           is.na(dop_complete)) |> 
+  filter(date_time_period_start >= 
+           max(date_time_period_start)- months(12)) |>
+  select(location_lact_list, starts_with("date_time"),
+         ct_animal_time_periods) |> 
+  mutate(ct_animal_time_periods = 
+           round(ct_animal_time_periods, 0))
+
+lame_data_365 <- lame_data_fix |> 
+  filter(date_event >= max(date_event) - months(24)) |> 
+  filter(lact_number>0) |>
+  mutate(date_time_period_start = 
+           case_when(date_event < max(date_event - months(12))~
+                       max(date_event) - months(24),
+                     date_event >= max(date_event - months(12))~
+                       max(date_event) - months(12)-1,
+                     .default = NA_Date_)
+         ) |> 
+  group_by(location_event, date_time_period_start, dim_cat) |> 
+  summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE))) |> 
+  ungroup () |> 
+  left_join(deno_365, 
+            by = c("location_event" = "location_lact_list",
+                   "date_time_period_start")
+            )|> 
+  pivot_longer(cols = all_of(all_lesions), 
+               names_to = "lesion", 
+               values_to = "count") |> 
+  mutate(risk = round((count / ct_animal_time_periods) * 100, 1)
+         )
+
+
+```
+
+# Graph rates for the last year
+
+```{r}
+#| label: graph-rates
+
+
+plot <- lame_data_365 |> 
+  filter(risk > 0) |>
+  # this orders by last year risk
+  mutate(lesion = fct_reorder(lesion, if_else(date_time_period_start ==
+                                                ymd("2024-10-04"), risk, 
+                                                    0),
+                              .fun = sum,
+                              .desc = FALSE)
+         ) |>
+  mutate(lesion = fct_recode(lesion, !!!lesion_labels)
+         )|>
+  ggplot()+
+  geom_col(aes(y = lesion, x = risk, fill = fct_rev(dim_cat)),
+           color = "white")+
+  theme_minimal()+
+  labs(title = "DIM Category",
+       x = "Yearly Risk per 100 cows",
+       fill = "",
+      y = "")+
+  scale_fill_viridis_d()+
+  guides(fill = guide_legend(nrow = 1, reverse = TRUE))+
+  theme(plot.title = element_text(
+        hjust = 0.5,
+        face = "bold", size = 12
+      ),
+    legend.position = "top",
+      legend.box = "vertical",
+      legend.title = element_text(face = "bold"))+
+  facet_wrap(vars(date_time_period_start),
+             labeller = labeller(
+               date_time_period_start = 
+                 c(
+                   `2023-10-05` = "Oct 2023 - Oct 2024",
+                   `2024-10-04` = "Oct 2024 - Oct 2025"
+                 )
+             ))
+
+plot
+
+```
+
