@@ -45,6 +45,10 @@ source('../functions/fxn_milestone7_solution.R')
 
 # create variables for inline code
 
+farm_name <- unique(solution$location_event)
+
+date_max_pull <- max(solution$date_event, na.rm = TRUE)
+date_min_pull <- date_max_pull - years(1)
 
 
 ```
@@ -70,9 +74,10 @@ browseURL(file_path)
 ```
 
 
-# Report for farm name
+# Report for `r farm_name`
 
--   This report shows data from the past year from min date to max data
+-   This report shows data from the past year from **`r date_min_pull`
+    to `r date_max_pull`**.
 
 ## Objective
 
@@ -296,8 +301,11 @@ Ideas (or hints for next week include)
 
 start doing math with dates so we can calculate time to event data (cull/repeat)
 
+# Deal with Other Category
+
 ```{r}
 #| label: extension
+#| echo: true
 
 # other category includes abscess and should be recoded as 
 # non_infectious
@@ -326,6 +334,8 @@ lame_plot
 ```
 
 # Yearly Rates
+
+There's a trick in the reorder to sort by a certain facet
 
 ```{r}
 #| label: yearly-rates
@@ -367,8 +377,6 @@ lame_data_365 <- lame_data_fix |>
 
 
 ```
-
-# Graph rates for the last year
 
 ```{r}
 #| label: graph-rates
