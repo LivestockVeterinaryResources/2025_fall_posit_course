@@ -38,9 +38,10 @@ pacman::p_load(
 
 events_formatted <- read_parquet(
   '../data/intermediate_files/events_formatted.parquet') 
-# |>
-#   select(ID, BDAT, FDAT, LACT, ARDAT, Date, Event, Remark, R, T, B, Protocols,
-#          source_file_path)
+
+animals <- read_parquet(
+  '../data/intermediate_files/animals.parquet')
+
   
 # load GC's functions
 source('../functions/fxn_load_os_fxns.R')
@@ -94,88 +95,60 @@ lame_data <- events_formatted |>
   fxn_dz_status(disease_cols = diseases,
                 event_filter = trimonly == 0)
 
+# join with animals to get left date
 
-slice_lame <- lame_data %>% slice_sample(n = 1000)
+joined <- lame_data |> 
+  left_join(animals |> 
+              select(id_animal, date_sold, date_died, date_left),
+            by = "id_animal")
 
-start_time <- Sys.time()
-test_dt <- lame_data |> 
-  lazy_dt() |> 
-  group_by(location_event, id_animal) %>% 
-  # calculate times trimmed in data set
-  mutate(times_trimmed = dense_rank(date_event)) %>% 
-  arrange(times_trimmed) %>%
-  mutate(         # determine if trim (1) or lame trim
-         type_prev_trim = lag(trimonly, n=1),
-         date_prev_event = ymd(lag(date_event, n=1)),
-         # time dif for any trim type
-         days_from_prev_event = date_event-date_prev_event,
-                  # calc for lame cows time from last trim if last was a trim
-         days_from_trim = if_else(trimonly == 0 & type_prev_trim == 1,
-                                date_event - date_prev_event, NA),
-         days_to_next_event = lead(days_from_prev_event, n=1),
+# add cull data
 
-         days_trim_to_next_lame = lead(days_from_trim, n=1)) %>% 
-  ungroup() |> 
-  as_tibble()
-end_time <- Sys.time()
-diff_time <- end_time - start_time
-
-# try this to replace above for speeed
-
-# 1. Arrange once at the start (much faster)
-start_time_opt <- Sys.time()
-dt_optimized <- lame_data %>%
-  lazy_dt() %>%
-  arrange(location_event, id_animal, date_event) %>% 
-  group_by(location_event, id_animal) %>%
+join_culled <- joined |> 
+  #lazy_dt() |> 
+  # deal with culling
   mutate(
-    # Use row_number if date_event is unique per animal
-    # it is as slice min in fucntion made it so
-    times_trimmed = row_number(), 
-    
-    # Pre-calculate lags to avoid repeating function calls
-    type_prev_trim = lag(trimonly),
-    date_prev_event = lag(date_event),
+    # create culling variables
+    culled_ever = if_else(is.na(date_left), 0, 1),
+    days_to_cull = date_left - date_event,
+    # temp censor date need to adjust
+    date_censor = ymd(date_max_pull) 
+  ) |> 
+  mutate(days_to_censor_cull = case_when(culled_ever == 1 ~
+                                     days_to_cull,
+                                    # cows not culled
+                                    culled_ever == 0 ~
+                                      date_censor - 
+                                                    date_event,
+                                    .default =  NA
+                                    ),
+    across(starts_with("days"), as.numeric)
+    ) |> 
+  group_by(location_event, id_animal) |> 
+  mutate(culled_last_trim = 
+           if_else(culled_ever == 1 & !is.na(days_to_next_trim), 0, 
+                   culled_ever),
+         culled_30 = if_else(culled_ever == 1 & days_to_cull <=30, 1, 0
+         )
+         )|>
+  ungroup()
 
-    
-    # Vectorized date subtraction
-    days_from_prev_event = date_event - date_prev_event,
-    
-    # logic for days_from_trim
-    days_from_trim = if_else(trimonly == 0 & type_prev_trim == 1,
-                             days_from_prev_event, NA),
-    
-    # Leads
-    days_to_next_event = lead(days_from_prev_event),
-    days_trim_to_next_lame = lead(days_from_trim)
-  ) %>%
-  ungroup() %>%
-  as_tibble() # Or as.data.table() for even more speed
-end_time_opt <- Sys.time()
-diff_time_opt <- end_time_opt - start_time_opt
-
-test_dt <- test_dt %>% arrange(location_event, id_animal, date_event)
-dt_optimized <- dt_optimized %>% arrange(location_event, id_animal, date_event)
-
-waldo::compare(test_dt, dt_optimized)
-
-diseases <- c("inf", "noninf", "lesion")
-
-# test count fxn.
-
-test <- lame_data |> 
-  fxn_dz_status(disease_cols = diseases,
-                event_filter = trimonly == 0)
+trim_cull_data <- join_culled |>
+  select(location_event, id_animal, date_birth, lact_number, date_event,
+         date_left, date_died, date_sold,
+         lesion, inf, noninf, trimonly, times_trimmed, date_censor, 
+         days_to_cull, days_to_censor_cull,culled_ever, culled_last_trim,
+         culled_30, date_prev_trim, days_to_next_trim, 
+         starts_with("life_"), starts_with("status_")
+         )
 
 
-# 
 
 
 
 
 
 ```
-
 
 ```{r}
 #| label: functions to hide my code
@@ -247,26 +220,59 @@ lame_plot <- lame_data |>
 ```
 
 ```{=html}
-<!-- The objective of this milestone is to use the template report you created last week to create another report while learning how to call functions from other places.
-Then you will learn the skills from this week to create a graph that takes data from text and date fields. You will use factor skills to order the graph properly to make your point cleaer.
-A few notes:  1) I put the code on how to insert an image in the header in the yaml change it to use your logo. 2)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
+<!-- The objective of this milestone is to build on the report and functions you used last milestone to analyze culling data in 2 different ways. You will create the culling variables and then visualize the data. You will then use both logistic regression and survival analysis to explore the data. 
+A few notes:  1) The logic is to create culling variables can be complex depending on the questions I have tried to be explicit in how I created the data set you should be using. 2)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
 ```
-
 
 # Report for `r farm_name`
 
 -   This report shows data from the past year from **`r date_min_pull`
-    to `r date_max_pull`**.
+    to `r date_max_pull`**.\
+-   For the culling analysis cows were censored on `r date_max_pull` if
+    they were not culled before this date.
 
 ## Objective
 
-Your objective is to recreate the solution data by doing the following with the raw_data table.
+Your objective is to recreate the solution data by doing the following
+with the events_formatted and animals table.
 
--   id_animal is a combination of source_file_path, ID, BDAT
--   Herd is extracted from the source_file_path
-extract the protocol data from the text fields
--   protocols1 and remark1 contain the first set of character strings before a non character string is found.
--   convert the exported data fields to real dates
+1.  Filter the events_formatted table to only include LAME and TRIM
+    events
+2.  Then create new variables for lesions using the
+    **fxn_code_lesions()** function that you used from Github last
+    milestone
+    -   This function is automatically loaded for you already.
+    -   use (protocol_var = protocols_letters1, remark_var =
+        remark_letters1) inside the function
+3.  Address the abscess warning in the function by coding anything with
+    ab in remark_letters1 or protocol_letter1 as noninf and remove them
+    from other.
+4.  Run the following 3 functions to process the lesion data further and
+    create variables you will need to use later on.
+    -   fxn_collapse_lesions(lesions = all_lesions)
+    -   fxn_trim_vars(location_event, id_animal, date_var = date_event,
+        trimonly_var = trimonly)
+    -   fxn_dz_status(disease_cols = diseases, event_filter = trimonly
+        == 0, gap = 1)
+        -   ***NOTE**: All the other functions are specific for lameness
+            this one is **NOT** and can be used for other diseases!*
+5.  Then join this data table with the animals table to get the
+    date_left, date_sold and date_died variables
+6.  Then create new culling variables as described below
+    -   **date_censor :** this is the last date the cow would have been
+        eligible to be culled and should be the last date and event was
+        entered in the data set
+    -   **days_to_cull:** days from event(trimming) to culling
+    -   **days_censor_cull:** days from event to culling or censor_date
+    -   **culled_ever:** 1 if the cow was culled, 0 if not culled
+    -   **culled_last_trim:** 1 if the cow was culled after her trim
+        without being trimmed again.
+    -   **culled_30**: 1 if the cow was culled \<=30 days after her trim
+        0 if not
+7.  Visualize this culling data
+8.  Create some summary statistics of this data using both logistic
+    regression and the provided survival analysis functions
+9.  
 
 ## Your Code Creation
 
@@ -275,7 +281,6 @@ extract the protocol data from the text fields
 
 # put your code here to create the parsed variables.
 ```
-
 
 ```{r}
 #| label: create-solution-data
@@ -292,12 +297,15 @@ waldo::compare(solution_data, solution)
 
 
 ```
+
 ### Create DIM Categories
 
-Then on the new data table.  
+Then on the new data table.
 
--  Create a dim_cat that splits DIM into 6 categories.
--  Order this variable in the correct order so if you were to graph it the categories would make sense and would not be in numerical or alphabetical order
+-   Create a dim_cat that splits DIM into 6 categories.
+-   Order this variable in the correct order so if you were to graph it
+    the categories would make sense and would not be in numerical or
+    alphabetical order
 
 ```{r}
 #| label: dim-cat-order
@@ -311,10 +319,11 @@ Then on the new data table.
 
 ### Import Function
 
-Then import this function from Github
-This function will create new variables for LAME and TRIM remarks in your data set that now has clean protocol and remark fields and an associated dim_cat variable.
-The function is called fxn_code_lesions() and it takes 3 input variables
-event_var, protocol_var, remark_var.  
+Then import this function from Github This function will create new
+variables for LAME and TRIM remarks in your data set that now has clean
+protocol and remark fields and an associated dim_cat variable. The
+function is called fxn_code_lesions() and it takes 3 input variables
+event_var, protocol_var, remark_var.
 
 ```{r}
 #| label: import-functions
@@ -348,7 +357,9 @@ for (file in file_list) {
 
 ### Create New Variables
 
-Then use this function to create new variables for the lesions in your data set.
+Then use this function to create new variables for the lesions in your
+data set.
+
 ```{r}
 #| label: add-new-variables
 #| echo: true
@@ -357,9 +368,10 @@ Then use this function to create new variables for the lesions in your data set.
 
 ```
 
-
 ## Plot Data
--  Summarize this new data for the past 12 months to create a graph that looks similar to this 
+
+-   Summarize this new data for the past 12 months to create a graph
+    that looks similar to this
 
 ```{r}
 #| label: fig-example_lame
@@ -405,12 +417,12 @@ plot
 
 ```
 
-
-    
 # Extension
 
-For this week extension continue to create standard things you would want to report
+For this week extension continue to create standard things you would
+want to report
 
 Ideas (or hints for next week include)
 
-start doing math with dates so we can calculate time to event data (cull/repeat)
+start doing math with dates so we can calculate time to event data
+(cull/repeat)
