@@ -11,7 +11,8 @@
   diseases <- c("inf", "noninf", "lesion")
   
   solution <- events_formatted |> 
-    select(id_animal, date_birth, date_fresh,lact_number, date_archived, date_event,
+    select(id_animal, date_birth, date_fresh,lact_number, lact_group, 
+           date_archived, date_event,
            event, 
            remark_letters1, protocols_letters1, location_event) |> 
     filter(event %in% c("LAME", "TRIM")) |>
@@ -64,7 +65,8 @@
            )
     )|>
     ungroup() |> 
-    select(location_event, id_animal, date_birth, lact_number, date_event,
+    select(location_event, id_animal, date_birth, lact_number, lact_group, 
+           date_event,
            date_left, date_died, date_sold,
            lesion, inf, noninf, trimonly, times_trimmed, date_censor, 
            days_to_cull, days_to_censor_cull,culled_ever, culled_last_trim,
