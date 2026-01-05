@@ -41,7 +41,7 @@ events_formatted_all <- read_parquet(
   select(source_file_path, ID, BDAT, FDAT, LACT, ARDAT, Event, Date, 
          Protocols, Remark, R, T, B)
          
-solution <- readr::read_rds("data_milestones/solutions_week_07.rds")
+source('../functions/fxn_milestone7_solution.R')
 
 # create variables for inline code
 
@@ -193,7 +193,7 @@ all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury",
     
 # Extension
 
-For this week extension continue to create standard things would want to report
+For this week extension continue to create standard things you would want to report
 
 Ideas (or hints for next week include)
 
