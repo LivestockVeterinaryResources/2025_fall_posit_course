@@ -74,3 +74,24 @@
            starts_with("life_"), starts_with("status_")
     )
   
+  log_data <- solution |> 
+    filter(lact_number > 0) |>
+    filter(culled_last_trim == 1) |> 
+    filter(date_event >= date_max_pull - months(12)) |> 
+    filter(days_to_censor_cull >0) |> 
+    group_by(id_animal) |>
+    slice_max(order_by = date_event, n = 1, with_ties = FALSE) |>
+    ungroup() |>
+    mutate(noninf = case_when(
+      noninf == 1 & status_lesion == "New" ~ "New Lesion",
+      noninf == 1 & status_lesion == "Chronic" ~ "Chronic Lesion",
+      noninf == 1 & status_lesion == "Repeat" ~ "Repeat Lesion",
+      noninf == 0 ~ "No Lesion"
+    ),
+    noninf = fct_drop(fct_relevel(noninf, c("No Lesion", 
+                                            "New Lesion", 
+                                            "Repeat Lesion",
+                                            "Chronic Lesion")
+    ))
+    )
+  
