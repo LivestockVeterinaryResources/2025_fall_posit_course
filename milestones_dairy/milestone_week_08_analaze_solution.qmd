@@ -48,7 +48,7 @@ source('../functions/fxn_load_os_fxns.R')
 fxn_load_os_fxns()
 
 # pull solution data
-#source('../functions/fxn_milestone7_solution.R')
+source('../functions/fxn_milestone8_solution.R')
 
 
 # create variables for inline code
@@ -72,8 +72,8 @@ all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury",
 diseases <- c("inf", "noninf", "lesion")
 
 lame_data <- events_formatted |> 
-  select(id_animal, date_birth, date_fresh,lact_number, date_archived, date_event,
-         event, 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group, 
+         date_archived, date_event, event, 
          remark_letters1, protocols_letters1, location_event) |> 
   filter(event %in% c("LAME", "TRIM")) |>
   fxn_code_lesions(protocol_var = protocols_letters1,
@@ -93,20 +93,12 @@ lame_data <- events_formatted |>
                 date_var = date_event,
                 trimonly_var = trimonly) |> 
   fxn_dz_status(disease_cols = diseases,
-                event_filter = trimonly == 0)
-
+                event_filter = trimonly == 0) |> 
 # join with animals to get left date
-
-joined <- lame_data |> 
   left_join(animals |> 
               select(id_animal, date_sold, date_died, date_left),
-            by = "id_animal")
-
+            by = "id_animal") |> 
 # add cull data
-
-join_culled <- joined |> 
-  #lazy_dt() |> 
-  # deal with culling
   mutate(
     # create culling variables
     culled_ever = if_else(is.na(date_left), 0, 1),
@@ -132,10 +124,9 @@ join_culled <- joined |>
                                days_to_cull <=30, 1, 0
                              )
          )|>
-  ungroup()
-
-solution <- join_culled |>
-  select(location_event, id_animal, date_birth, lact_number, date_event,
+  ungroup() |> 
+  select(location_event, id_animal, date_birth, lact_number, lact_group,
+         date_event,
          date_left, date_died, date_sold,
          lesion, inf, noninf, trimonly, times_trimmed, date_censor, 
          days_to_cull, days_to_censor_cull,culled_ever, culled_last_trim,
@@ -155,67 +146,85 @@ solution <- join_culled |>
 #| label: functions to hide my code
 #| include: false
 
-lame_dim_graph <- function() {
-  solution_dim_cat <- solution_data |> 
-  mutate(dim_event = as.integer(difftime(date_event, 
-                                         date_fresh, units = "days"))) |> 
-  mutate(dim_cat = case_when(
-      dim_event < 30 ~ "<30",
-      dim_event <= 90 ~ "30-90",
-      dim_event <= 150 ~ "91-150",
-      dim_event <= 210 ~ "151-210",
-      dim_event <= 270 ~ "211-270",
-      dim_event > 270 ~ ">270",
-      .default = NA_character_
-    ),
-    dim_cat = fct_relevel(
-      dim_cat,
-      c(
-        "<30", "30-90",
-        "91-150", "151-210",
-        "211-270", ">270"
-      )
-    )) 
-
-
-lame_data <- solution_dim_cat |> 
-  filter(event %in% c("LAME", "TRIM")) |>
-  fxn_code_lesions(protocol_var = protocols_letters1,
-                  remark_var = remark_letters1)
-
-
-
-
-lame_plot <- lame_data |> 
-  filter(date_event >= max(date_event) - months(12)) |>
-  filter(lact_number>0) |> 
-  group_by(location_event, dim_cat) |>
-  summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE))) |> 
-  ungroup () |> 
-  pivot_longer(cols = all_of(all_lesions), 
-               names_to = "lesion", 
-               values_to = "count") |> 
-  filter(count >0) |>
-  mutate(lesion = fct_reorder(lesion, count)) |>
-  mutate(lesion = fct_recode(lesion, !!!lesion_labels)) |>
-  ggplot()+
-  geom_col(aes(y = lesion, x = count, fill = fct_rev(dim_cat)),
-           color = "white")+
+violin <- solution_data |> 
+  filter(lact>0) |>
+  filter(culled_last_trim == 1) |> 
+  filter(date_event >= date_max_pull - months(12)) |>
+  mutate(lesion = case_when(
+    lesion == 1 & status_lesion == "New" ~ "New Lesion",
+    lesion == 1 & status_lesion == "Chronic" ~ "Chronic Lesion",
+    lesion == 1 & status_lesion == "Repeat" ~ "Repeat Lesion",
+    lesion == 0 ~ "No Lesion"
+  ),
+  lesion = fct_relevel(lesion, c("No Lesion", 
+                                       "New Lesion", 
+                                 "Repeat Lesion",
+                                       "Chronic Lesion")
+                            )
+  ) |>
+  ggplot(aes(x = days_to_cull, y = fct_rev(lesion),
+             fill = lesion)
+                  ) +
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75),
+              quantile.colour = "red",
+              scale = "count")+
   theme_minimal()+
-  labs(title = "DIM Category",
-       x = "Count of Lesions in Lame Events",
-       fill = "",
-      y = "")+
+  labs(x = "Days to Culling after Trim",
+       y = "")+
   scale_fill_viridis_d()+
-  guides(fill = guide_legend(nrow = 1, reverse = TRUE))+
-  theme(plot.title = element_text(
-        hjust = 0.5,
-        face = "bold", size = 12
-      ),
-    legend.position = "top",
-      legend.box = "vertical",
-      legend.title = element_text(face = "bold"))
-}
+  theme(legend.position = "none")
+
+
+violin
+
+# heat map of culled 30
+
+
+heat_map <- solution_data |> 
+  filter(lact_number > 0) |> 
+  filter(date_event >= date_max_pull - months(12)) |>
+  group_by(id_animal) |>
+  slice_max(order_by = date_event, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  mutate(noninf = case_when(
+   noninf == 1 & status_lesion == "New" ~ "New Lesion",
+    noninf == 1 & status_lesion == "Chronic" ~ "Chronic Lesion",
+    noninf == 1 & status_lesion == "Repeat" ~ "Repeat Lesion",
+    noninf == 0 ~ "No Lesion"
+  ),
+  noninf = fct_drop(fct_relevel(noninf, c("No Lesion", 
+                                       "New Lesion", 
+                                 "Repeat Lesion",
+                                       "Chronic Lesion")
+                            ))
+  ) |>
+  group_by(noninf, lact_group, culled_30) |> 
+  summarise(count = n(), .groups = "drop") |> 
+  group_by(noninf, lact_group) |>
+  mutate(pct = count / sum(count)) |> 
+  ungroup()
+
+plot <- heat_map |> 
+  filter(culled_30 == 1) |>
+  ggplot(aes(x = noninf, y = lact_group,
+             fill = pct)
+         ) +
+  geom_tile()+
+  geom_text(aes(label = paste0(round(pct*100,1), "%")),
+            color = "white", size = 6)+
+  scale_fill_viridis_c(name = "Culled within 30 days %",
+                       labels = scales::percent_format(accuracy = 1),
+                       alpha = 0.8,
+                       option = "C")+
+  theme_minimal()+
+  # labs(x = "",
+  #      y = "")+
+  theme(axis.ticks.y=element_blank())
+
+plot
+
+# logistic regression
+# 
 
 
 ```
@@ -234,7 +243,7 @@ A few notes:  1) The logic is to create culling variables can be complex dependi
 
 ## Objective
 
-Your objective is to recreate the solution data by doing the following
+Your objective is to recreate the solution_data by doing the following
 with the events_formatted and animals table.
 
 1.  Filter the events_formatted table to only include LAME and TRIM
@@ -292,6 +301,8 @@ all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury",
 
 diseases <- c("inf", "noninf", "lesion")
 
+# solution_data <- 
+
 # fxn_collapse_lesions(lesions = all_lesions) |> 
 #   fxn_trim_vars(location_event, id_animal,
 #                 date_var = date_event,
@@ -305,79 +316,28 @@ diseases <- c("inf", "noninf", "lesion")
 ```{r}
 #| label: create-solution-data
 
+solution_data <- lame_data
+ 
 waldo::compare(solution_data, solution)
 
 
 
 ```
 
-### Create DIM Categories
+### Visualize Data
 
-Then on the new data table.
+Then on the solution_data table.
 
--   Create a dim_cat that splits DIM into 6 categories.
--   Order this variable in the correct order so if you were to graph it
-    the categories would make sense and would not be in numerical or
-    alphabetical order
+-   Create a graph that shows the distribution of time to culling for
+    cows.
 
 ```{r}
-#| label: dim-cat-order
+#| label: visualize-culling
 #| echo: true
 
-# put your DIM category code here
+# put your visualization category code here
 
 
-
-```
-
-### Import Function
-
-Then import this function from Github This function will create new
-variables for LAME and TRIM remarks in your data set that now has clean
-protocol and remark fields and an associated dim_cat variable. The
-function is called fxn_code_lesions() and it takes 3 input variables
-event_var, protocol_var, remark_var.
-
-```{r}
-#| label: import-functions
-#| echo: true
-
-# 1. Install/Load required library
-if (!require("httr")) install.packages("httr")
-library(httr)
-
-# 2. Define the repo details
-user <- "Dairy-Cow-Foot-Doc"
-repo <- "os_functions"
-
-# 3. Get the list of files in the repo via GitHub API
-req <- GET(paste0("https://api.github.com/repos/", user, "/", repo, "/contents/"))
-file_list <- content(req)
-
-# 4. Filter for .R files and source them
-for (file in file_list) {
-  if (grepl("\\.R$", file$name)) {
-    # Get the 'raw' version of the file so R can read the code
-    raw_url <- gsub("github.com", "raw.githubusercontent.com", file$html_url)
-    raw_url <- gsub("/blob/", "/", raw_url)
-    
-    message("Sourcing: ", file$name)
-    source(raw_url)
-  }
-}
-
-```
-
-### Create New Variables
-
-Then use this function to create new variables for the lesions in your
-data set.
-
-```{r}
-#| label: add-new-variables
-#| echo: true
-
-# put your code for recoding the variables here
 
 ```
 
