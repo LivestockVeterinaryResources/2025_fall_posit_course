@@ -187,11 +187,11 @@ quarto::quarto_render("report_data_dictionary.qmd")
 ## Gerard's lameness report ---------------------------
 quarto::quarto_render("report_explore_lame.qmd")
 
-
+## Example reports ---------------------------
+quarto::quarto_render("report_how_to_use_denominators.qmd")
 
 
 # FUTURE STUFF ---------------------------
-# quarto::quarto_render('step3_create_denominators_by_group.qmd') #(under development)
 
 # quarto::quarto_render('step3_report_disease_template.qmd')
 # quarto::quarto_render('animal_counts.qmd')
