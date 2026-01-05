@@ -1,5 +1,5 @@
 ---
-title: "Week 8 Milestone Analyze"
+title: "Week 8 Milestone Analysis"
 author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
 date: "`r Sys.Date()`"
 format:
