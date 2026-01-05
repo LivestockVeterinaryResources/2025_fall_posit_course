@@ -38,10 +38,13 @@ pacman::p_load(
 
 events_formatted_all <- read_parquet(
   '../data/intermediate_files/events_all_columns.parquet') 
-# |> 
-#   select(ID, BDAT, FDAT, LACT, ARDAT, Date, Event, Remark, R, T, B, Protocols, 
+# |>
+#   select(ID, BDAT, FDAT, LACT, ARDAT, Date, Event, Remark, R, T, B, Protocols,
 #          source_file_path)
   
+# pull solution data
+source('../functions/fxn_milestone7_solution.R')
+
 
 # create variables for inline code
 farm_name <- unique(events_formatted_all$location_event)
@@ -104,7 +107,7 @@ lame_plot <- lame_data |>
            color = "white")+
   theme_minimal()+
   labs(title = "DIM Category",
-       X = "Count of Lesions in Lame Events",
+       x = "Count of Lesions in Lame Events",
        fill = "",
       y = "")+
   scale_fill_viridis_d()+
@@ -160,10 +163,9 @@ solution_data <- events_formatted_all |>
                 event, 
          remark_letters1, protocols_letters1, R, T, B, location_event)  
 
-saveRDS(solution_data, "data_milestones/solutions_week_07.rds")
 
-# solution <- readr::read_rds("data_milestones/solutions_week_07.rds")
-# waldo::compare(solution_data, solution)
+
+waldo::compare(solution_data, solution)
 
 
 
@@ -265,7 +267,7 @@ plot
     
 # Extension
 
-For this week extension continue to create standard things would want to report
+For this week extension continue to create standard things you would want to report
 
 Ideas (or hints for next week include)
 
