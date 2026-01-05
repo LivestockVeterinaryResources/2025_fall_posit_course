@@ -25,6 +25,7 @@ params:
 
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load(
+  broom,
   tidyverse,
   dtplyr,
   gt,
@@ -33,6 +34,8 @@ pacman::p_load(
   lubridate,
   quarto, 
   arrow,
+  marginaleffects,
+  scales,
   zoo
   )
 
@@ -177,10 +180,10 @@ violin <- solution_data |>
 
 violin
 
-# heat map of culled 30
+# heat map of culled 30 with denominator # cows trimmed
 
 
-heat_map <- solution_data |> 
+heat_map_data <- solution_data |> 
   filter(lact_number > 0) |> 
   filter(date_event >= date_max_pull - months(12)) |>
   group_by(id_animal) |>
@@ -197,35 +200,141 @@ heat_map <- solution_data |>
                                  "Repeat Lesion",
                                        "Chronic Lesion")
                             ))
-  ) |>
+  ) 
+
+heat_map_lact <- heat_map_data |>
   group_by(noninf, lact_group, culled_30) |> 
   summarise(count = n(), .groups = "drop") |> 
   group_by(noninf, lact_group) |>
   mutate(pct = count / sum(count)) |> 
   ungroup()
 
+heat_map_sum <- heat_map_data |> 
+  group_by(noninf, culled_30) |>
+  summarise(count = n(), .groups = "drop") |>
+  group_by(noninf) |>
+  mutate(pct = count / sum(count),
+         lact_group = "Overall") |> 
+  ungroup()
+
+
+heat_map <- bind_rows(heat_map_lact, heat_map_sum)
+ 
+
 plot <- heat_map |> 
   filter(culled_30 == 1) |>
-  ggplot(aes(x = noninf, y = lact_group,
+  mutate(lact_group = fct_relevel(lact_group, 
+                                  c("LACT 3+", 
+                                    "LACT 2", 
+                                    "LACT 1", 
+                                    "Overall"))                                    ) |> 
+  ggplot(aes(x = noninf, y = fct_rev(lact_group),
              fill = pct)
          ) +
   geom_tile()+
-  geom_text(aes(label = paste0(round(pct*100,1), "%")),
-            color = "white", size = 6)+
-  scale_fill_viridis_c(name = "Culled within 30 days %",
+  geom_text(aes(label = str_glue(
+    "{round(pct * 100, 1)}% ({count})")),
+          color = "black", 
+          size = 3)+
+  scale_fill_viridis_c(name = "% Culled within 30 days",
                        labels = scales::percent_format(accuracy = 1),
                        alpha = 0.8,
                        option = "C")+
   theme_minimal()+
-  # labs(x = "",
-  #      y = "")+
+  labs(x = "",
+      y = "")+
   theme(axis.ticks.y=element_blank())
 
 plot
 
 # logistic regression
-# 
 
+model <- glm(culled_30 ~ as_factor(noninf), 
+    family = "binomial", data = heat_map_data)
+
+model_results <- tidy(model, exponentiate = TRUE,
+                      conf.int = TRUE) |> 
+  rename(oddsratio = estimate) |> 
+  mutate(
+    # Format p-value to 4 decimal places
+    p.value = number(p.value, accuracy = 0.00000001),
+    # Optional: Format OR and CI for readability
+    estimate = number(oddsratio, accuracy = 0.01),
+    conf.low = number(conf.low, accuracy = 0.01),
+    conf.high = number(conf.high, accuracy = 0.01)
+  )
+
+model_risks <- avg_predictions(model, 
+                               variables = c("noninf"))
+
+model_risks |> 
+  select(noninf,
+    Risk = estimate,
+         conf.low,
+         conf.high) |> 
+  mutate(
+    risk = number(risk*100, accuracy = 0.1),
+    conf.low = number(conf.low*100, accuracy = 0.1),
+    conf.high = number(conf.high*100, accuracy = 0.1)
+  ) |> 
+         gt()
+
+
+# survival analysis
+
+# km anaylsys
+
+library(survival)
+libary(survminer)
+library(ggsurvfit)
+
+
+km_fit <- survfit2(Surv(time = days_to_censor_cull,
+                event = culled_last_trim) ~ noninf, 
+data = heat_map_data)
+
+surv_plot <- km_fit |> 
+  ggsurvfit(
+    type = "risk"
+  )+
+  add_confidence_interval()+
+  add_quantile()+
+  scale_ggsurvfit()+
+  scale_fill_viridis_d(name = "Non-Infectious Lesion Status")+
+  scale_color_viridis_d(name = "Non-Infectious Lesion Status")+
+  labs(x = "Days to Culling after Trim",
+       y = "Percent of Cows Culled")+
+  theme_minimal()+
+  theme(legend.position = "bottom")
+
+surv_plot
+
+library(flextable)
+library(gtsummary)
+
+surv_table <- km_fit |> 
+  tbl_survfit(
+    times = c(7, 30, 60, 180),
+    label = " ",
+    type = "risk",
+    label_header = "{time} Days"
+  ) %>%
+  as_flex_table() %>% # makes formatting and pdf better
+  add_header_row(
+    top = TRUE,
+    values = c(
+      "Non-Infectious Lesion Status",
+      "% Culled (Confidence Interval) at",
+      "",
+      "", ""
+    )
+  ) %>%
+  bold(i = 1, bold = TRUE, part = "header") %>% # bolds headers
+  bold(i = 2, bold = TRUE, part = "header") %>%
+  merge_at(i = 1:2, j = 1, part = "header") %>% # merges 1st row
+  merge_at(i = 1, j = 2:5, part = "header") # merges top columns
+
+surv_table
 
 ```
 
