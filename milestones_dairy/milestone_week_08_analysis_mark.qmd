@@ -91,7 +91,7 @@ browseURL(file_path)
 # =========================================================================
 
 # summary(animals)
-# glimpse(animals)
+glimpse(animals)
 # summary(events_formatted)
 # glimpse(events_formatted)
 # unique(events_formatted$event_type)
@@ -165,17 +165,83 @@ with the events_formatted and animals table.
 # Data cleaning and conversion.  Create solution_data
 # =========================================================================
 
+library(dplyr)
+
 # Filter events_formatted for only LAME and TRIM
 events_formatted_lt <- events_formatted[events_formatted$event %in% c("LAME", "TRIM"), ]
+  # summary(events_formatted_lt)
+  # glimpse(events_formatted_lt)
+  # unique(events_formatted_lt$remark_letters1)
+  # unique(events_formatted_lt$protocols_letters1)
+  # write_csv(events_formatted_lt,"excel_excuses.csv")
 
+# Apply the function to events_formatted_lt
+events_formatted_lt <- fxn_code_lesions(
+  events_formatted_lt,
+  event_var = event,
+  protocol_var = protocols_letters1,
+  remark_var = remark_letters1
+)
 
-# # Apply the function to solution_data
-# solution_data <- fxn_code_lesions(
-#   solution_data,
-#   event_var = event,
-#   protocol_var = protocols_letters1,
-#   remark_var = remark_letters1
+# write_csv(events_formatted_lt,"excel_excuses.csv")
+
+# Convert abscess designations to a "1" in the column noninf
+events_formatted_lt$noninf <- ifelse(grepl("^Ab", events_formatted_lt$protocols_letters1), 1, 0)
+# Convert abscess designations to a "0" in the column other
+events_formatted_lt$other  <- ifelse(grepl("^Ab", events_formatted_lt$protocols_letters1), 0, 1)
+
+# # Filter and confirm the previous "Ab" recoding steps
+# events_formatted_lt %>%
+#   filter(grepl("^Ab", protocols_letters1)) %>%
+#   glimpse()
+
+# =========================================================================
+# Apply the functions to events_formatted_lt
+# events_formatted_lt <- fxn_collapse_lesions(
+#   events_formatted_lt,
+#   lesions = all_lesions
 # )
+# 
+# events_formatted_lt <- fxn_trim_vars(
+#   events_formatted_lt,
+#   location_event, 
+#   id_animal, 
+#   date_var = date_event, 
+#   trimonly_var = trimonly
+# )
+# 
+# events_formatted_lt <- fxn_dz_status(
+#   events_formatted_lt,
+#   disease_cols = diseases, 
+#   event_filter = trimonly == 0, gap = 1
+# )
+# =========================================================================
+
+events_formatted_lt <-
+  events_formatted_lt |>
+  fxn_collapse_lesions(lesions = all_lesions) |>
+  fxn_trim_vars(
+    location_event,
+    id_animal,
+    date_var = date_event,
+    trimonly_var = trimonly
+  ) |>
+  fxn_dz_status(
+    disease_cols = diseases,
+    event_filter = trimonly == 0,
+    gap = 1
+  )
+
+# Join the animals data frame to events_formatted_lt and add listed variables
+events_formatted_lt <- events_formatted_lt %>%
+  left_join(
+    animals %>% select(id_animal, date_left, date_sold, date_died),
+    by = "id_animal"
+  )
+
+
+
+
 
 # =========================================================================
 
