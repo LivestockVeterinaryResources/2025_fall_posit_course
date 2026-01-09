@@ -1,7 +1,7 @@
 ---
 title: "Week 6 Milestone Template Report"
-author: Dairy Cow Foot Doc
-date: "`r Sys.Date()`"
+author: "<img src='images/logo.png' width='50' /> Dairy Cow Foot Doc"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 format:
   html:
     theme: darkly
