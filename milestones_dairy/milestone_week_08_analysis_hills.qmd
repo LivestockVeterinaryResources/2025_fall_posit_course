@@ -289,9 +289,6 @@ plot_data <- solution_data %>%
   filter(lact_number > 0) %>%
   filter(!is.na(days_censor_cull), days_censor_cull > 0)
 
-# --- 2) Violin plot of time-to-culling distribution ---
-# If you truly want "time to culling" ONLY, use days_to_cull and drop NA.
-# If you want "time to cull OR censor" use days_to_censor_cull instead.
 
 ggplot(plot_data %>% filter(!is.na(days_to_cull), days_to_cull > 0),
        aes(x = "Any lesion (last trim)", y = days_to_cull)) +
