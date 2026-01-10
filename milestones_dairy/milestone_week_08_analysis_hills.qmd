@@ -214,9 +214,12 @@ solution_data <- lame_data|>
 
 solution_data <- solution_data |> 
   mutate(
-    days_to_cull     = as.numeric(date_left - date_event),
+    date_censor = max(date_event, na.rm = TRUE),
+    days_to_cull = as.numeric(date_left - date_event),
     culled_ever = if_else(!is.na(days_to_cull), 1, 0),
-    culled_in_30   = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
+    days_censor_cull = as.numeric(if_else(!is.na(date_left), date_left, date_censor) - date_event),
+    culled_30   = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
+    culled_last_trim = If_else(case_when(trimonly = 1, !is.na(date_left), date_event < date_left))
     dim_boxes     = case_when(
                     dim_event >= 270 ~ ">270",
                     dim_event >= 211 ~ "211-270",
