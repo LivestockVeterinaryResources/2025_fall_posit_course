@@ -8,6 +8,8 @@ format:
     number-sections: true
     theme: cosmo
     code-fold: true
+  pdf:
+    colorlinks: true
 ---
 
 ::: {style="text-align:center; margin-bottom:40px;"}
