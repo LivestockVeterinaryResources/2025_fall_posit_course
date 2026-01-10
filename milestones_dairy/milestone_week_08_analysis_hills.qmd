@@ -200,7 +200,7 @@ solution_data |>
   )
 
 # 3. Sequencing, culling, DIM bins, floored dates
-solution_data %>%
+solution_data <- solution_data|> 
   arrange(id_animal_lact, date_event) %>%
   group_by(id_animal_lact) %>%
   mutate(
@@ -209,7 +209,9 @@ solution_data %>%
     is_last   = seq_date == max(seq_date),
     culled_last_trim = if_else(is_last & !is.na(date_left), 1, 0)
   ) %>%
-  ungroup() %>%
+  ungroup()
+
+solution_data <- solution_data |> 
   mutate(
     date_censor      = max(date_event, na.rm = TRUE),
     days_to_cull     = as.numeric(date_left - date_event),
@@ -233,8 +235,8 @@ solution_data %>%
                   ),
     floordate_fresh = floor_date(date_fresh, "month"),
     floordate_event = floor_date(date_event, "month")
-  ) %>%
-  select(-is_last)
+  ) 
+
 
 
 ```
