@@ -1,0 +1,323 @@
+---
+title: |
+  <div style="display: flex; align-items: center; gap: 1.2rem;">
+    <img src="images/DDH.jpg" style="max-height: 110px; border-radius: 6px; padding: 4px; background-color: white;" />
+    <div style="font-size: 1.5em; font-weight: 600; color: white;">CattleMax-Initial Report</div>
+  </div>
+author: "Dakota Dairy Health"
+date: "`r Sys.Date()`"  
+format:
+  html:
+    toc: true    
+    logo: images/DDH.jpg
+editor: visual
+echo: false
+embed-resources: true
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+#'/images/DDH.jpg'   # path to logo file
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  zoo,
+  forcats,
+  purrr,
+  stringr
+  )
+
+# data you will need for this report
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet') 
+
+# filter this data for LAME and TRIM in the event variable
+
+#Logo doesn't go in the YAML 
+#Chat GPT needs super specification to be useful- doesn't recognize .rmd vs .qmd, gotta say "in my .qmd file" 
+```
+
+```{=html}
+
+<!-- The objective of this milestone is to start the creation of a
+template you can use for reproducible reports going forward. Most of
+this milestone will focus on customizing the look of the report that you
+can use for future reports. We will also explore of the lameness data.We will use this template in future milestones.
+A few notes:  
+1) The logo contains a clickable link 
+2) to use an image put it in the image folder (the one in the report is called 
+  logo_no_background.png)
+3)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
+```
+
+Objective
+
+Explore recorded lameness/trim protocols
+
+Use the protocols_letters1 variable to get the information about the lameness/trim protocols used.
+
+```{r}
+
+#| label:  # replicate_graph
+
+  Trim_Protocol_Bar_Graph <- events_formatted %>%
+  filter(event %in% c("LAME", "TRIM")) %>% 
+  filter(
+    !(event == "LAME" & protocols_letters1 == "Trim")  # remove Trim only for LAME
+  ) %>% 
+  # replace_na(list(protocols_letters1 = "NA")) %>% 
+  filter(!is.na(event=="TRIM")) %>% 
+  add_count(protocols_letters1, name = "trim_event_count") %>%  # add frequency column 
+  filter( trim_event_count > 29) %>% 
+  ggplot(aes(
+    x = fct_rev(fct_infreq((protocols_letters1))),  # most frequent at top
+    fill = protocols_letters1
+  )) +
+  coord_flip() +                        # horizontal bars
+  geom_bar() +
+  facet_wrap(~ event) +                  # facet by event
+  scale_fill_viridis_d(na.value = "black") +
+  labs(
+    y = "Count of Events",
+    x = "Lameness Protocols",
+    fill = "Protocol"
+  )
+ Trim_Protocol_Bar_Graph
+ 
+ `r inline code`
+```
+
+```{r}
+
+#| label: count_by_remark
+#| df-print: kable
+events_formatted %>% 
+  filter(event %in% c("LAME", "TRIM")) %>% 
+  # filter(!(event == "LAME" & protocols_letters1 == c("Penicillin", "H"))) %>% #Filtering out responses from Lame, Trim responses still present (2 Hs)
+  count(remark, sort=TRUE)  #Ascending count 
+
+```
+
+NA exploration
+
+```{r}
+
+#| df-print: kable
+#| label: NA?
+
+events_formatted_wide <- events_formatted %>%
+  filter(event %in% c("LAME", "TRIM")) %>% 
+  pivot_wider(
+    names_from = event,
+    values_from = remark)
+#   ) %>% 
+# filter(is.na(LAME) | is.na(TRIM)) 
+
+str(events_formatted_wide)
+nrow(events_formatted_wide)
+
+na_table <- events_formatted_wide %>%
+  summarize(
+    na_lame = sum(is.na(LAME)),
+    na_trim = sum(is.na(TRIM)),
+    not_na_lame = sum(!is.na(LAME)),
+    not_na_trim = 63300 - na_trim,  #total rows is 63300, wasn't working the other way 
+    pct_na_trim = round((na_trim / (na_trim + not_na_trim)) * 100, 1),  
+    pct_na_lame = round((na_lame / (na_lame + not_na_lame)) * 100, 1)
+  )
+print(na_table) #shows tibble, doesn't otherwise because of computed values I think  
+
+# put your code to explore NA's here and name it na_lame_event so the code
+# below will work
+#na_lame_events <- na_explore(p)
+
+
+# we will learn better ways to show tables later but for now this works
+#rmarkdown::paged_table(na_lame_events)
+
+
+ na_lame_events <- events_formatted %>% ## Is this looking for NAs by remark? 
+  filter(event %in% c("LAME", "TRIM")) %>%
+  filter(!is.na(remark)) %>%
+  # replace_na(list(remark = "NA"))
+  # filter(event == is.na(c("LAME", "TRIM"))) %>% 
+  count(location_event, event, remark, name = "n") %>% 
+  select(location_event, event, remark, n) %>% 
+   arrange(desc(n))
+ print(na_lame_events) 
+```
+
+Extension
+
+For this week extension create a template for your future reports
+
+-   customize the report to use your business' logo
+
+-   use a theme/font colour scheme you prefer
+
+```{r}
+#| label: graphs
+#| title: Lameness by Month
+
+# events_formatted %>% 
+#   distinct(event, pick(contains("LAME")))
+# 
+# 
+# events_formatted %>%
+#   filter(str_starts(event, "LAME")) %>%  # only events starting with "LAME"
+#   count(event, sort=TRUE)
+
+events_formatted_1 <-events_formatted %>% 
+  mutate(floordate_month = floor_date(date_event, 'months')) %>%
+    arrange(id_animal_lact, event, date_event)%>%
+    group_by(id_animal_lact, event)%>%
+    mutate(event_count = 1:n())%>%
+    ungroup()%>%
+    mutate(event = paste0(event, event_count)) 
+
+lame_events <- c("LAME1", "LAME2", "LAME3", "LAME4", "LAME5", "LAME6", "LAME7", "LAME8","LAME9", "LAME10") #Use strings to filter longer things 
+
+heat_data <- events_formatted_1 %>%
+  mutate(floordate_date = floor_date(date_event, "month"),
+         year = year(date_event)) %>% 
+  filter(event %in% lame_events) %>%
+  group_by(id_animal_lact) %>%
+  mutate(
+    date_lame = as.Date(date_event),
+    num_lame1 = n()) %>%  # number of LAME events for this cow
+  add_count(id_animal_lact, name = "num_lame") %>% 
+  ungroup() 
+
+
+events_formatted_1 <- events_formatted_1 %>% #Events_formatted not heat_data - second mutate for date_lame, different data set, different approach
+  mutate(
+    date_lame = if_else(
+      str_starts(event, "LAME"),
+      as.Date(date_event),
+      as.Date(NA))) %>% 
+    mutate(in_herd_6mo = if_else(
+    any(floordate_month > (date_lame %m+% months(6)), na.rm = TRUE),
+    "Yes",
+    "No" )) 
+
+events_formatted_1 <- events_formatted_1 %>% 
+mutate(
+    # date 6 months after first LAME
+    lame_plus_6mo = date_lame %m+% months(6),
+    # check if cow left the herd before 6 months
+    in_herd_6mo = case_when(
+      is.na(date_lame) ~ NA_character_,                     # no LAME event
+      is.na(date_archived) ~ "Yes",                          # still in herd
+      date_archived > lame_plus_6mo ~ "Yes",                # archived after 6 months
+      date_archived <= lame_plus_6mo ~ "No"                 # archived before 6 months
+    ) 
+  )
+
+heat_data <- heat_data %>% #Adding lame_plus_6mo to heat_data for heat map 
+mutate(
+    # date 6 months after first LAME
+    lame_plus_6mo = date_lame %m+% months(6),
+    # check if cow left the herd before 6 months
+    in_herd_6mo = case_when(
+      is.na(date_lame) ~ NA_character_,                     # no LAME event
+      is.na(date_archived) ~ "Yes",                          # still in herd
+      date_archived > lame_plus_6mo ~ "Yes",                # archived after 6 months
+      date_archived <= lame_plus_6mo ~ "No"                 # archived before 6 months
+    ) 
+  ) 
+  
+
+##Checking my work 
+heat_data %>% 
+  # count(in_herd_6mo, sort=TRUE) %>% 
+  count(num_lame, sort=TRUE)
+```
+
+```{r}
+#| label: graphs2
+#| title: Lameness by Month
+#| warning: false
+#| fig-cap: "Lameness by Lactation Group"
+
+# ##Heat Graph for Number Lame 
+# heat_data %>% 
+#   filter(year %in% c(2025,2024,2023), 
+#          lact_group != "Heifer") %>% 
+# ggplot(aes(x = floordate_month, y = lact_group_5, fill = num_lame)) +
+#   geom_tile(color = "white") +                       # tiles for heat map
+#   scale_fill_viridis_c(option = "C") +              # color gradient
+#   labs(
+#     x = "Month",
+#     y = "Lactation Group",
+#     fill = "Number of LAME Events",
+#     title = "LAME Events Heat Map by Month and Lactation"
+#   ) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# ##Heat Graph for Retention in Herd  -- Didn't really work - must run initial data chunk above first for the groups 
+# heat_data %>% 
+#   filter(year %in% c(2025,2024,2023), 
+#          lact_group != "Heifer",
+#          is.na(date_archived)) %>% 
+# ggplot(aes(x = floordate_month, y = lact_group_5, fill = lame_plus_6mo)) +
+#   geom_tile(color = "white") +                       # tiles for heat map
+#   scale_fill_viridis_c(option = "C") +              # color gradient
+#   labs(
+#     x = "Month",
+#     y = "Lactation Group",
+#     fill = "Lame Plus 6 Months",
+#     title = "LAME Events Heat Map by Month and Lactation"
+#   ) +
+#   theme_minimal() +
+#   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+#Bar Graph for Retention in Herd
+heat_data %>%
+  #group_by(lact_group_5) %>%
+  mutate(
+    lcount_by_lact = sum(num_lame) #Lame count by Lactation 
+  ) %>%
+  ungroup() %>%
+  filter((lubridate::year(floordate_month) == c(2025,2024,2023)),
+         lact_group != "Heifer",
+         is.na(date_archived)) %>%
+         # group_by(in_herd_6mo) %>%
+ggplot(aes(x = lact_group_5, y = num_lame, fill=lact_group_5)) +
+  geom_boxplot() +
+  facet_wrap(vars(year)) +
+  scale_fill_viridis_d()
+  
+#Heat Graph including Herd Retention
+heat_data %>%
+  filter((lubridate::year(floordate_month) == 2025),
+         lact_group != "Heifer") %>%
+  group_by(floordate_month, lact_group_5, in_herd_6mo) %>%
+  summarise(lcount_by_lact = sum(num_lame, na.rm = TRUE) / n_distinct(id_animal_lact), .groups = "drop") %>%
+  ggplot(aes(x = factor(floordate_month), y = lact_group_5, fill = lcount_by_lact)) +
+  geom_tile(color = "white") +
+  facet_wrap(~ in_herd_6mo) +
+  scale_fill_viridis_c(option = "C") +
+  labs(
+    x = "Floordate_Month",
+    y = "Lactation Group",
+    fill = "Average Lame Event by Lactation",
+    title = "LAME Events by Year, Lactation, and Herd Retention"
+  ) +
+  theme_minimal()
+
+```
+
+\`\`\`
