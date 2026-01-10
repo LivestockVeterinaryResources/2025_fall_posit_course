@@ -281,6 +281,29 @@ Then on the solution_data table.
 # put your visualization category code here
 
 
+plot_data <- solution_data %>%
+  filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%
+  group_by(id_animal) %>%
+  slice_max(date_event, n = 1, with_ties = FALSE) %>%
+  ungroup() |> 
+  filter(lact_number > 0) %>%
+  filter(!is.na(days_censor_cull), days_censor_cull > 0)
+
+# --- 2) Violin plot of time-to-culling distribution ---
+# If you truly want "time to culling" ONLY, use days_to_cull and drop NA.
+# If you want "time to cull OR censor" use days_to_censor_cull instead.
+
+ggplot(plot_data %>% filter(!is.na(days_to_cull), days_to_cull > 0),
+       aes(x = "Any lesion (last trim)", y = days_to_cull)) +
+  geom_violin(trim = FALSE) +
+  geom_jitter(width = 0.08, height = 0, alpha = 0.25) +
+  labs(
+    x = NULL,
+    y = "Days from last trim to culling",
+    title = "Distribution of time to culling (last 12 months, last trim, lactating, any lesion)"
+  ) +
+  theme_minimal()
+
 
 
 ```
