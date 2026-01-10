@@ -1,11 +1,15 @@
 ---
-title: "Week 8 Milestone Analysis"
-author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
-date: "`r Sys.Date()`"
+title: |
+  <div style="text-align:center">
+    <img src="logo_b.png" width="350" /><br>
+    Milestone Week-8<br>
+    <span style="font-size:0.5em;">Mark Kirkpatrick DVM, MS</span>
+  </div>
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
 format:
   html:
     page-layout: full
-    theme: flatly
+    theme: cerulean
     df_print: paged
     toc: true
     toc-location: left
@@ -189,7 +193,7 @@ events_formatted_lt$noninf <- ifelse(grepl("^Ab", events_formatted_lt$protocols_
 # Convert abscess designations to a "0" in the column other
 events_formatted_lt$other  <- ifelse(grepl("^Ab", events_formatted_lt$protocols_letters1), 0, 1)
 
-# Apply the three classifying functions
+# Apply the three classifying FUNCTIONS
 events_formatted_lt <-
   events_formatted_lt |>
   fxn_collapse_lesions(lesions = all_lesions) |>
@@ -307,7 +311,7 @@ events_formatted_lt <- events_formatted_lt %>%
 #| label: create-solution-data
 
 
-waldo::compare(solution_data, solution)
+# waldo::compare(solution_data, solution)
 
 
 
@@ -335,10 +339,23 @@ Then on the solution_data table.
 
 library(ggplot2)
 
+# Recode, Filter and Relabel
+# =========================================================================
+
+# Recode the status_lesion variable
+events_formatted_lt <- events_formatted_lt %>%
+  mutate(status_lesion = case_when(
+    status_lesion %in% c("Chronic", "New", "Repeat") ~ status_lesion,
+    TRUE ~ "Ctrl"
+  ))
+
 # Filter the dataset
 plot_data <- events_formatted_lt %>%
   # Remove heifers
   filter(lact_group_5 != "Heifer") %>%
+  
+  # # Remove trimonly = 1.  Evaluate only lame
+  # filter(trimonly == 0) %>%
   
   # Keep only last 12 months of events
   filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%
@@ -355,22 +372,27 @@ plot_data <- events_formatted_lt %>%
   mutate(
     status_lesion_label = case_when(
       status_lesion == "Chronic" ~ "Chronic Lesion",
-      status_lesion == "NA"      ~ "No Lesion",
+      status_lesion == "Ctrl"      ~ "No Lesion",
       status_lesion == "New"     ~ "New Lesion",
       status_lesion == "Repeat"  ~ "Repeat Lesion",
       TRUE ~ "Unknown"
     )
   )
 
-# Create violin plot
+# Create Violin Plot with scale = "count"
+# =========================================================================
+
+plot_data <- plot_data %>%
+  group_by(status_lesion_label) %>%
+  mutate(n_obs = n()) %>%
+  ungroup()
+
 ggplot(plot_data, aes(
   x = status_lesion_label,
   y = days_to_cull,
   fill = status_lesion_label
 )) +
-  geom_violin(trim = FALSE, alpha = 0.7, scale="count") +
-  
-  # Add median and IQR bars
+  geom_violin(trim = FALSE, alpha = 0.7, scale = "count") +
   stat_summary(
     fun.data = function(x) {
       data.frame(
@@ -383,12 +405,25 @@ ggplot(plot_data, aes(
     color = "black",
     size = 0.6
   ) +
-  
+  geom_text(
+    data = plot_data %>% distinct(status_lesion_label, n_obs),
+    aes(
+      x = status_lesion_label,
+      y = max(plot_data$days_to_cull) * 1.05,
+      # y = 0, (original left side placement)
+      label = paste0("n = ", n_obs)
+    ),
+    vjust = -0.5,
+    color = "black",
+    size = 4,
+    inherit.aes = FALSE
+  ) +
   coord_flip() +
   labs(
     title = "Distribution of Time to Culling by Lesion Status",
     x = "",
-    y = "Days to Cull"
+    y = "Days to Cull",
+    caption = "Violin scale = count"
   ) +
   theme_minimal(base_size = 14) +
   theme(
@@ -397,7 +432,57 @@ ggplot(plot_data, aes(
   )
 
 
+# Create Violin Plot with undefined scale
+# =========================================================================
 
+plot_data <- plot_data %>%
+  group_by(status_lesion_label) %>%
+  mutate(n_obs = n()) %>%
+  ungroup()
+
+ggplot(plot_data, aes(
+  x = status_lesion_label,
+  y = days_to_cull,
+  fill = status_lesion_label
+)) +
+  geom_violin(trim = FALSE, alpha = 0.7) +
+  stat_summary(
+    fun.data = function(x) {
+      data.frame(
+        y = median(x),
+        ymin = quantile(x, 0.25),
+        ymax = quantile(x, 0.75)
+      )
+    },
+    geom = "pointrange",
+    color = "black",
+    size = 0.6
+  ) +
+  geom_text(
+    data = plot_data %>% distinct(status_lesion_label, n_obs),
+    aes(
+      x = status_lesion_label,
+      y = max(plot_data$days_to_cull) * 1.05,
+      # y = 0, (original left side placement)
+      label = paste0("n = ", n_obs)
+    ),
+    vjust = -0.5,
+    color = "black",
+    size = 4,
+    inherit.aes = FALSE
+  ) +
+  coord_flip() +
+  labs(
+    title = "Distribution of Time to Culling by Lesion Status",
+    x = "",
+    y = "Days to Cull",
+    caption = "Violin scale = not defined"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold")
+  )
 
 
 
@@ -415,8 +500,134 @@ ggplot(plot_data, aes(
 #| echo: true
 
 
+# =========================================================================
+# 1. Filter and prepare dataset
+# =========================================================================
+plot_data <- events_formatted_lt %>%
+  filter(lact_group_5 != "Heifer") %>%                 
+  filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%
+  mutate(
+    status_lesion_label = case_when(
+      status_lesion == "Chronic" ~ "Chronic Lesion",
+      status_lesion == "Ctrl"    ~ "No Lesion",
+      status_lesion == "New"     ~ "New Lesion",
+      status_lesion == "Repeat"  ~ "Repeat Lesion",
+      TRUE ~ "Unknown"
+    )
+  )
 
+# =========================================================================
+# 2. Summarize: % culled within 30 days + count
+# =========================================================================
+heat_data <- plot_data %>%
+  group_by(status_lesion_label, lact_group_5) %>%
+  summarise(
+    n = n(),
+    pct_culled_30 = mean(culled_30, na.rm = TRUE) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    # Remove heat mapping for Repeat Lesion
+    pct_culled_30 = ifelse(status_lesion_label == "Repeat Lesion", NA, pct_culled_30)
+  )
 
+# =========================================================================
+# 3. Build heat map
+# =========================================================================
+ggplot(
+  heat_data,
+  aes(
+    x = status_lesion_label,
+    y = lact_group_5,
+    fill = pct_culled_30
+  )
+) +
+  geom_tile(color = "black", alpha = 0.8) +
+
+  geom_text(
+    aes(label = paste0(
+      ifelse(is.na(pct_culled_30), "NA", round(pct_culled_30, 1)), 
+      "%\n(n=", n, ")"
+    )),
+    color = "black",
+    size = 4
+  ) +
+
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    name = "% Culled Within 30 Days",
+    na.value = "white"   # ensures Repeat Lesion tiles are blank
+  ) +
+
+  labs(
+    title = "% Culled - 30 Days by Lesion and Lactation Group",
+    x = "Lesion Status",
+    y = "Lactation Group"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  )
+
+# =========================================================================
+# 2. Summarize: % died within 30 days + count
+# =========================================================================
+heat_data <- plot_data %>%
+  group_by(status_lesion_label, lact_group_5) %>%
+  summarise(
+    n = n(),
+    pct_died_30 = mean(died_30, na.rm = TRUE) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    # Remove heat mapping for Repeat Lesion
+    pct_died_30 = ifelse(status_lesion_label == "Repeat Lesion", NA, pct_died_30)
+  )
+
+# =========================================================================
+# 3. Build heat map
+# =========================================================================
+ggplot(
+  heat_data,
+  aes(
+    x = status_lesion_label,
+    y = lact_group_5,
+    fill = pct_died_30
+  )
+) +
+  geom_tile(color = "black", alpha = 0.8) +
+
+  geom_text(
+    aes(label = paste0(
+      ifelse(is.na(pct_died_30), "NA", round(pct_died_30, 1)), 
+      "%\n(n=", n, ")"
+    )),
+    color = "black",
+    size = 4
+  ) +
+
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    name = "% Died Within 30 Days",
+    na.value = "white"   # ensures Repeat Lesion tiles are blank
+  ) +
+
+  labs(
+    title = "% Died - 30 Days by Lesion and Lactation Group",
+    x = "Lesion Status",
+    y = "Lactation Group",
+    caption = "This is not the full archive risk"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  )
 
 
 
@@ -443,7 +654,41 @@ risks.
 #| label: fig-example_logistic
 #| echo: true
 
-log_model <- # your model code goes here
+# =========================================================================
+# 1. Filter dataset + create status_lesion_label
+# =========================================================================
+model_data <- events_formatted_lt %>%
+  filter(lact_group_5 != "Heifer") %>%                                 # remove heifers
+  filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%  # last 12 months
+  # filter(noninf == 1) %>%                                              # retain only non-infectious (optional)
+  mutate(
+    status_lesion_label = case_when(
+      status_lesion == "Chronic" ~ "Chronic",
+      status_lesion == "Ctrl"    ~ "No Lesion",
+      status_lesion == "New"     ~ "New",
+      status_lesion == "Repeat"  ~ "Repeat",
+      TRUE ~ "Unknown"
+    ),
+    status_lesion_label = relevel(factor(status_lesion_label), ref = "No Lesion"),
+    culled_30 = as.numeric(culled_30)
+  )
+
+# =========================================================================
+# 2. Fit logistic regression model
+# =========================================================================
+log_model <- glm(
+  culled_30 ~ status_lesion_label,
+  data = model_data,
+  family = binomial(link = "logit")
+)
+
+summary(log_model)
+
+
+# View model summary
+summary(log_model)
+
+# log_model <- # your model code goes here
 
 log_model_results <- tidy(log_model, exponentiate = TRUE,
                       conf.int = TRUE) |> 
@@ -459,6 +704,58 @@ log_model_results <- tidy(log_model, exponentiate = TRUE,
 
 log_model_results |> 
   gt()
+
+# =========================================================================
+# Odds ratios
+# =========================================================================
+
+OR <- exp(coef(log_model))
+
+# 95% confidence intervals for odds ratios
+CI <- exp(confint(log_model))
+
+# Combine into a clean table
+OR_table <- data.frame(
+  Term = names(OR),
+  Odds_Ratio = OR,
+  CI_lower = CI[, 1],
+  CI_upper = CI[, 2]
+)
+
+OR_table
+
+# =========================================================================
+# Predicted probabilities
+# =========================================================================
+
+# Create a new dataset with one row per lesion category
+newdata <- data.frame(
+  status_lesion_label = levels(model_data$status_lesion_label)
+)
+
+# Predicted probabilities with 95% CI
+pred <- predict(log_model, newdata, type = "link", se.fit = TRUE)
+
+newdata$prob <- plogis(pred$fit)
+newdata$lower <- plogis(pred$fit - 1.96 * pred$se.fit)
+newdata$upper <- plogis(pred$fit + 1.96 * pred$se.fit)
+
+newdata
+
+# =========================================================================
+# Plot predicted probabilities
+# =========================================================================
+
+ggplot(newdata, aes(x = status_lesion_label, y = prob)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.15) +
+  labs(
+    title = "Predicted Probability of Culling Within 30 Days",
+    x = "Lesion Status",
+    y = "Predicted Probability"
+  ) +
+  theme_minimal(base_size = 14)
+
 
 ```
 
@@ -515,25 +812,83 @@ analysis can be found
 # survival analysis
 # km anaylsys
 
-km_fit <- survfit2(Surv(time = days_to_censor_cull,
-                event = culled_last_trim) ~ noninf, 
-data = log_data)
+# km_fit <- survfit2(Surv(time = days_to_censor_cull,
+#                 event = culled_last_trim) ~ noninf, 
+# data = log_data)
+# 
+# surv_plot <- km_fit |> 
+#   ggsurvfit(
+#     type = "risk"
+#   )+
+#   add_confidence_interval()+
+#   add_quantile()+
+#   scale_ggsurvfit()+
+#   scale_fill_viridis_d(name = "Non-Infectious Lesion Status")+
+#   scale_color_viridis_d(name = "Non-Infectious Lesion Status")+
+#   labs(x = "Days to Culling after Trim",
+#        y = "Percent of Cows Culled")+
+#   theme_minimal()+
+#   theme(legend.position = "bottom")
+# 
+# surv_plot
 
-surv_plot <- km_fit |> 
-  ggsurvfit(
-    type = "risk"
-  )+
-  add_confidence_interval()+
-  add_quantile()+
-  scale_ggsurvfit()+
-  scale_fill_viridis_d(name = "Non-Infectious Lesion Status")+
-  scale_color_viridis_d(name = "Non-Infectious Lesion Status")+
-  labs(x = "Days to Culling after Trim",
-       y = "Percent of Cows Culled")+
-  theme_minimal()+
+# =========================================================================
+# Kaplan-Meier Survival Analysis
+# =========================================================================
+
+library(survival)
+library(ggsurvfit)
+
+# =========================================================================
+# 1. Filter dataset + create status_lesion_label
+# =========================================================================
+surv_data <- events_formatted_lt %>%
+  filter(lact_group_5 != "Heifer") %>%                                 # remove heifers
+  filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%  # last 12 months
+  # filter(noninf == 1) %>%                                              # retain only non-infectious (optional)
+  mutate(
+    status_lesion_label = case_when(
+      status_lesion == "Chronic" ~ "Chronic",
+      status_lesion == "Ctrl"    ~ "No Lesion",
+      status_lesion == "New"     ~ "New",
+      status_lesion == "Repeat"  ~ "Repeat",
+      TRUE ~ "Unknown"
+    ),
+    status_lesion_label = factor(status_lesion_label)
+  )
+
+# =========================================================================
+# 2. Fit Kaplan–Meier model
+# =========================================================================
+km_fit <- survfit2(
+  Surv(time = days_censor_cull, event = culled_ever) ~ status_lesion_label,
+  data = surv_data
+)
+
+# =========================================================================
+# 3. Plot survival curves
+# =========================================================================
+surv_plot <- km_fit |>
+  ggsurvfit(type = "risk") +
+  add_confidence_interval() +
+  add_quantile() +
+  scale_ggsurvfit() +
+  scale_fill_viridis_d(name = "Lesion Status") +
+  scale_color_viridis_d(name = "Lesion Status") +
+  labs(
+    x = "Days to Culling",
+    y = "Percent of Cows Culled",
+    title = "Kaplan–Meier Survival: Culling by Lesion Status"
+  ) +
+  theme_minimal() +
   theme(legend.position = "bottom")
 
 surv_plot
+
+
+
+
+
 ```
 
 ```{r}
