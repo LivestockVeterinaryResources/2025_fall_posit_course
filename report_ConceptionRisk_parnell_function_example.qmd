@@ -18,12 +18,16 @@ events<-read_parquet('data/intermediate_files/events_formatted.parquet')
 ```{r}
 bred_events<-events%>%
   filter(event %in% 'BRED')%>%
-  mutate(floor_date_month = floor_date(date_event, unit = 'month'))%>%
-  fxn_standardize_for_CR()%>%
-  group_by(location_event, lact_group, floor_date_month, Rstandard)
+  mutate(floor_date_month = floor_date(date_event, unit = 'month'))
 
-test<-bred_events%>%
-  fxn_calculate_CR_main()
+# cr_report<-bred_events%>%
+#    # fxn_standardize_for_CR()%>%
+#    # group_by(location_event, lact_group, floor_date_month, Rstandard)%>%
+#    # fxn_calculate_CR_main()
+#   fxn_create_CR_reports(grp_vars = c('location_event', 'lact_group', 'floor_date_month', 'Rstandard'))
+ 
+ cr_report<-bred_events%>%
+            fxn_create_CR_reports(grp_vars = c('location_event', 'lact_group', 'floor_date_month', 'Rstandard'))
 
 
 ```
