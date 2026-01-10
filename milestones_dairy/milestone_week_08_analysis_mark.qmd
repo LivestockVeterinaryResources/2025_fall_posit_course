@@ -77,8 +77,6 @@ source('../functions/fxn_milestone8_solution.R')
 A few notes:  1) The logic is to create culling variables can be complex depending on the questions I have tried to be explicit in how I created the data set you should be using. 2)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
 ```
 
-Run this chuck below. It will open the example report in your browser.
-You should delete this chunk in your final report
 
 ```{r}
 #| label: open-html-r
@@ -101,65 +99,31 @@ browseURL(file_path)
 # unique(events_formatted$event_type)
 # unique(events_formatted$event)
 
+# # Define in line R objects
+# location <- unique(events_formatted_lt$location_event)
+# location <- location[!is.na(location)][1]
+# location
+# censor_date <- unique(events_formatted_lt$date_censor)
+# censor_date
+
 ```
 
-# Report for r farm_name
+# Report for Herd 2108e
 
--   This report shows data from the past year from
-    ** date to
-    end date **.
+- This report shows data from the past year from r start_date to r end_date.
 
--   For the culling analysis cows were censored on
-    **end date** if they were not culled
-    before this date.
+- For the culling analysis cows were censored on 2025-10-05 if they were not culled before this date.
+
+
 
 ## Objective
 
-Your objective is to recreate the solution_data by doing the following
-with the events_formatted and animals table.
+Monitor hoof health and analysis
 
-1.  Filter the events_formatted table to only include LAME and TRIM
-    events
-2.  Then create new variables for lesions using the
-    **fxn_code_lesions()** function that you used from Github last
-    milestone
-    -   This function is automatically loaded for you already.
-    -   use (protocol_var = protocols_letters1, remark_var =
-        remark_letters1) inside the function
-3.  Address the abscess warning in the function by coding anything with
-    ab in remark_letters1 or protocol_letter1 as noninf and remove them
-    from other.
-4.  Run the following 3 functions to process the lesion data further and
-    create variables you will need to use later on.
-    -   **fxn_collapse_lesions**(lesions = all_lesions)
-    -   **fxn_trim_vars**(location_event, id_animal, date_var =
-        date_event, trimonly_var = trimonly)
-    -   **fxn_dz_status**(disease_cols = diseases, event_filter =
-        trimonly == 0, gap = 1)
-        -   ***NOTE**: All the other functions are specific for lameness
-            this one is **NOT** and can be used for other diseases!*
-5.  Then join this data table with the animals table to get the
-    date_left, date_sold and date_died variables
-6.  Then create new culling variables as described below
-    -   **date_censor :** this is the last date the cow would have been
-        eligible to be culled and should be the last date and event was
-        entered in the data set
-    -   **days_to_cull:** days from event(trimming) to culling
-    -   **days_censor_cull:** days from event to culling or censor_date
-        if not culled
-    -   **culled_ever:** 1 if the cow was culled, 0 if not culled
-    -   **culled_last_trim:** 1 if the cow was culled after her trim
-        without being trimmed again.
-    -   **culled_30**: 1 if the cow was culled \<=30 days after her trim
-        0 if not
-7.  Visualize this culling data
-8.  Create some summary statistics of this data using both logistic
-    regression and compare that the provided survival analysis functions
 
-## Your Code Creation
+## Code to create operational data frame
 
--   The code block has some hints to help you create the solution_data
-    data frame.
+-   This is the data frame preparation steps and code
 
 ```{r}
 #| label: your code
@@ -307,31 +271,10 @@ events_formatted_lt <- events_formatted_lt %>%
 
 ```
 
-```{r}
-#| label: create-solution-data
-
-
-# waldo::compare(solution_data, solution)
-
-
-
-```
 
 ## Visualize Data
 
 ### Violin plot
-
-Then on the solution_data table.
-
--   Create a violin graph that shows the distribution of time to culling
-    for cows with any lesion.
-    -   restrict data to
-        -   just the past 12 months
-        -   data from the cow's last trimming
-        -   lactating cows only
-        -   positive days_to_censor_cull numbers only
--   To compare your restricted data to the solution data use
-    -   *waldo::compare(log_data, restricted_data)*
 
 ```{r}
 #| label: visualize-culling
@@ -342,7 +285,7 @@ library(ggplot2)
 # Recode, Filter and Relabel
 # =========================================================================
 
-# Recode the status_lesion variable
+# Recode the status_lesion variable of 'NA'
 events_formatted_lt <- events_formatted_lt %>%
   mutate(status_lesion = case_when(
     status_lesion %in% c("Chronic", "New", "Repeat") ~ status_lesion,
@@ -491,9 +434,10 @@ ggplot(plot_data, aes(
 
 ### Heat Map
 
--   For non infectious lesions create a heat map similar to this using
-    the culled_30 variable.
--   Restrict the data using the same criteria as above.
+-   Non infectious lesions heat mapped to visualize the proportion of cases
+    culled within 30 days of the lesion treatment
+    
+-   Data restricted using the same criteria as above.
 
 ```{r}
 #| label: fig-example_heat
@@ -633,22 +577,9 @@ ggplot(
 
 ```
 
-# Modelling
+# Logistic Regression of Lesion Impact on Culling
 
-At times it is useful to create a model to determine if the differences
-between culling risks between groups are important. Since we are
-modelling culling one approach is to use logistic regression to do this.
-Interpreting the outputs from these models can be harder to explain as
-typically they output odds ratios which aren't commonly used by people
-other then researchers/data geeks. For this reason we should turn the
-model outputs back into risks.
-
-In the section below create a logistic model that models the impact of
-non_infectious lesion status on culling at 30 days. - Name the model
-output log_model. \_ Ignore lactation for this model. There are ways to
-account for lactation but we will keep it simple for now. - We have
-provide the code to make looking at the model output and to turn it into
-risks.
+Model the impact of non_infectious lesion status on culling at 30 days.
 
 ```{r}
 #| label: fig-example_logistic
@@ -798,39 +729,9 @@ censoring would occur if it has not been 30 days since a cow was
 trimmed. A better approach to deal with this is to use survival
 analysis.
 
-Below we have provided code to create a Kaplan Meier survival curve and
-table to look at the impact of non infectious lesions on culling risk
-over time. You will notice that the risk estimates are higher now that
-we are accounting for censoring. A good quick read about survival
-analysis can be found
-[here](https://www.emilyzabor.com/survival-analysis-in-r.html#kaplan-meier-plots)
-
 ```{r}
 #| label: fig-example_km
 #| echo: true
-
-# survival analysis
-# km anaylsys
-
-# km_fit <- survfit2(Surv(time = days_to_censor_cull,
-#                 event = culled_last_trim) ~ noninf, 
-# data = log_data)
-# 
-# surv_plot <- km_fit |> 
-#   ggsurvfit(
-#     type = "risk"
-#   )+
-#   add_confidence_interval()+
-#   add_quantile()+
-#   scale_ggsurvfit()+
-#   scale_fill_viridis_d(name = "Non-Infectious Lesion Status")+
-#   scale_color_viridis_d(name = "Non-Infectious Lesion Status")+
-#   labs(x = "Days to Culling after Trim",
-#        y = "Percent of Cows Culled")+
-#   theme_minimal()+
-#   theme(legend.position = "bottom")
-# 
-# surv_plot
 
 # =========================================================================
 # Kaplan-Meier Survival Analysis
@@ -895,6 +796,8 @@ surv_plot
 #| label: fig-example_km_table
 #| echo: true
 
+# install.packages("broom")
+
 # times are adjustable
 
 surv_table <- km_fit |>
@@ -924,14 +827,4 @@ surv_table
 
 ```
 
-# Extension
 
-For this week extension continue to create standard things you would
-want to report or incorporate modeling techniques to explore the data
-
-Ideas
-
--   Try the code with other diseases like mastitis or culture
-    information
--   Try to use the survival code to get estimates for time to repeat or
-    recheck?
