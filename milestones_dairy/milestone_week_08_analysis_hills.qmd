@@ -212,6 +212,20 @@ solution_data <- lame_data|>
 
 # 3. Culling
 
+solution_data <- solution_data %>%
+  group_by(id_animal) %>%
+  arrange(date_event, .by_group = TRUE) %>%
+  mutate(
+    next_event_date = lead(date_event),
+
+    culled_last_trim = if_else(
+      trimonly == 1 & !is.na(date_left) & (is.na(next_event_date) | next_event_date >= date_left),
+      1L, 0L
+    )
+  ) %>%
+  ungroup() %>%
+  select(-next_event_date)
+
 solution_data <- solution_data |> 
   mutate(
     date_censor = max(date_event, na.rm = TRUE),
@@ -219,7 +233,6 @@ solution_data <- solution_data |>
     culled_ever = if_else(!is.na(days_to_cull), 1, 0),
     days_censor_cull = as.numeric(if_else(!is.na(date_left), date_left, date_censor) - date_event),
     culled_30   = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
-    culled_last_trim = If_else(case_when(trimonly = 1, !is.na(date_left), date_event < date_left))
     dim_boxes     = case_when(
                     dim_event >= 270 ~ ">270",
                     dim_event >= 211 ~ "211-270",
