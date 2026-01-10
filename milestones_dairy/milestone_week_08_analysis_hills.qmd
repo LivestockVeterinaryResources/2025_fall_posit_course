@@ -297,7 +297,7 @@ ggplot(plot_data %>% filter(!is.na(days_to_cull), days_to_cull > 0),
   labs(
     x = NULL,
     y = "Days from last trim to culling",
-    title = "Distribution of time to culling (last 12 months, last trim, lactating, any lesion)"
+    title = "Distribution of time to culling"
   ) +
   theme_minimal()
 
