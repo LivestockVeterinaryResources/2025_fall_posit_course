@@ -154,7 +154,7 @@ with the events_formatted and animals table.
 # 0. Configuration
 fresh_dates <- events_formatted %>%
   filter(event == "FRESH") %>%
-  group_by(id_animal_lact) %>%
+  group_by(id_animal, id_animal_lact) %>%
   summarise(date_fresh = min(date_event, na.rm = TRUE), .groups = "drop")
 
 all_lesions <- c(
@@ -166,7 +166,7 @@ all_lesions <- c(
 
 diseases <- c("inf", "noninf", "lesion")
 
-# 1. Base event-level data - Debug no errrors
+# 1. Base event-level data - Debugged kind of working? No injuries etc?
 lame_data <- events_formatted %>%
   filter(event %in% c("LAME", "TRIM")) %>%
   fxn_code_lesions(
@@ -176,18 +176,21 @@ lame_data <- events_formatted %>%
   ) 
 
 lame_data <- lame_data |> 
-  mutate(
-    noninf = if_else(str_detect(protocols_letters1, "^ab"), 1, 0),
-    other  = if_else(str_detect(protocols_letters1, "^ab"), 0, 1)
+ mutate(
+   noninf = case_when(
+      str_detect(protocols_letters1, "^Ab") ~ 1,
+      TRUE ~ 0   # default for all other rows
+    )
   )
 
+lame_data <- lame_data %>%
+  left_join(
+    animals %>% select(id_animal, date_left),
+    by = "id_animal"
+  )
 
 lame_data <- lame_data |> 
-  left_join(
-    animals %>% select(id_animal, date_left, date_sold, date_died),
-    by = "id_animal"
-  ) %>%
-  left_join(fresh_dates, by = "id_animal_lact")
+  left_join(fresh_dates, by = "id_animal")
 
 # 2. Lesion Columns 
 lame_data <- solution_data|>
