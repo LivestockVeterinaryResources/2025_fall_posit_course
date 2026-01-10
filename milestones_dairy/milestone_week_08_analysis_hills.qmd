@@ -166,18 +166,23 @@ all_lesions <- c(
 
 diseases <- c("inf", "noninf", "lesion")
 
-# 1. Base event-level data
-solution_data <- events_formatted %>%
+# 1. Base event-level data - Debug no errrors
+lame_data <- events_formatted %>%
   filter(event %in% c("LAME", "TRIM")) %>%
   fxn_code_lesions(
     event_var    = event,
     protocol_var = protocols_letters1,
     remark_var   = remark_letters1
-  ) %>%
+  ) 
+
+lame_data <- lame_data |> 
   mutate(
-    noninf = if_else(str_detect(protocols_letters1, "^Ab"), 1, noninf),
-    other  = if_else(str_detect(protocols_letters1, "^Ab"), 0, other)
-  ) %>%
+    noninf = if_else(str_detect(protocols_letters1, "^ab"), 1, 0),
+    other  = if_else(str_detect(protocols_letters1, "^ab"), 0, 1)
+  )
+
+
+lame_data <- lame_data |> 
   left_join(
     animals %>% select(id_animal, date_left, date_sold, date_died),
     by = "id_animal"
@@ -185,7 +190,7 @@ solution_data <- events_formatted %>%
   left_join(fresh_dates, by = "id_animal_lact")
 
 # 2. Lesion Columns 
-solution_data |>
+lame_data <- solution_data|>
   fxn_collapse_lesions(lesions = all_lesions) |>
   fxn_trim_vars(
     location_event,
@@ -200,30 +205,12 @@ solution_data |>
   )
 
 # 3. Sequencing, culling, DIM bins, floored dates
-solution_data <- solution_data|> 
-  arrange(id_animal_lact, date_event) %>%
-  group_by(id_animal_lact) %>%
-  mutate(
-    seq_date  = row_number(),
-    seq_event = row_number(order(order(event), date_event)),
-    is_last   = seq_date == max(seq_date),
-    culled_last_trim = if_else(is_last & !is.na(date_left), 1, 0)
-  ) %>%
-  ungroup()
 
 solution_data <- solution_data |> 
   mutate(
-    date_censor      = max(date_event, na.rm = TRUE),
     days_to_cull     = as.numeric(date_left - date_event),
-    days_censor_cull = if_else(
-                          is.na(days_to_cull),
-                          as.numeric(date_censor - date_event),
-                          days_to_cull
-                        ),
     culled_ever = if_else(!is.na(days_to_cull), 1, 0),
-    culled_30   = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
-    sold_30     = if_else(!is.na(date_sold) & days_to_cull <= 30, 1, 0),
-    died_30     = if_else(!is.na(date_died) & days_to_cull <= 30, 1, 0),
+    culled_in_30   = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
     dim_cat     = case_when(
                     dim_event >= 270 ~ ">270",
                     dim_event >= 211 ~ "211-270",
@@ -233,8 +220,6 @@ solution_data <- solution_data |>
                     dim_event >= 0   ~ "<30",
                     TRUE             ~ NA_character_
                   ),
-    floordate_fresh = floor_date(date_fresh, "month"),
-    floordate_event = floor_date(date_event, "month")
   ) 
 
 
