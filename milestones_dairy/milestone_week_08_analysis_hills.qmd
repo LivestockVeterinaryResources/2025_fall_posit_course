@@ -279,8 +279,6 @@ Then on the solution_data table.
 #| echo: true
 
 # put your visualization category code here
-
-
 plot_data <- solution_data %>%
   filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%
   group_by(id_animal) %>%
@@ -289,7 +287,6 @@ plot_data <- solution_data %>%
   filter(lact_number > 0) %>%
   filter(!is.na(days_censor_cull), days_censor_cull > 0)
 
-
 ggplot(plot_data %>% filter(!is.na(days_to_cull), days_to_cull > 0),
        aes(x = "Any lesion (last trim)", y = days_to_cull)) +
   geom_violin(trim = FALSE) +
@@ -297,9 +294,71 @@ ggplot(plot_data %>% filter(!is.na(days_to_cull), days_to_cull > 0),
   labs(
     x = NULL,
     y = "Days from last trim to culling",
-    title = "Distribution of time to culling"
+    title = "Distribution of time to culling (last 12 months, last trim, lactating, any lesion)"
   ) +
   theme_minimal()
+
+# counts for labels
+n_labs <- plot_data2 %>%
+  count(status_lesion, name = "n")
+
+# y-position for labels (a little above the max within each group)
+y_tops <- plot_data2 %>%
+  group_by(status_lesion) %>%
+  summarise(y_top = max(days_to_cull, na.rm = TRUE), .groups = "drop")
+
+lab_df <- n_labs %>%
+  left_join(y_tops, by = "status_lesion") %>%
+  mutate(y_lab = y_top * 1.06)
+
+ggplot(plot_data2, aes(x = status_lesion, y = days_to_cull, fill = status_lesion)) +
+  # fuller, comparable violins
+  geom_violin(
+    trim = FALSE,
+    scale = "width",
+    alpha = 0.75,
+    width = 0.9
+  ) +
+  # add points (subtle)
+  geom_jitter(
+    aes(color = status_lesion),
+    width = 0.12,
+    height = 0,
+    alpha = 0.20,
+    size = 1.2,
+    show.legend = FALSE
+  ) +
+  # crisp summary overlay (median + IQR)
+  geom_boxplot(
+    width = 0.18,
+    outlier.shape = NA,
+    alpha = 0.35,
+    color = "black"
+  ) +
+  # n labels
+  geom_text(
+    data = lab_df,
+    aes(x = status_lesion, y = y_lab, label = paste0("n = ", n)),
+    inherit.aes = FALSE,
+    fontface = "bold",
+    size = 4
+  ) +
+  coord_flip(clip = "off") +
+  labs(
+    title = "Time to Culling by Lesion Status",
+    subtitle = "Violin shows distribution; box shows median and IQR",
+    x = NULL,
+    y = "Days from last trim to culling",
+    caption = "Violin scale = width"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    panel.grid.major.y = element_blank(),
+    plot.margin = margin(10, 30, 10, 10) # extra right margin for labels after flip
+  )
 
 
 
@@ -316,9 +375,69 @@ ggplot(plot_data %>% filter(!is.na(days_to_cull), days_to_cull > 0),
 #| echo: true
 
 
+# 1) Define which lesion columns are NON-infectious (edit these to your real column names)
+noninf_cols <- c(
+  "wld", "sole_ulcer", "injury",
+  "cork", "other", "hemorrhage", "sole_fracture",
+  "toe_ulcer", "thin", "noninf",
+  "toe", "axial", "lesion"
+)
+inf_cols <- c(
+  "dd", "foot_rot"
+)
 
+heat_data <- solution_data %>%
+  # same restrictions as above
+  filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%
+  group_by(id_animal) %>%
+  slice_max(date_event, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  filter(lact_group > 0) %>%                              
+  filter(!is.na(days_censor_cull), days_censor_cull > 0) %>%
+  
+  # pivot NON-infectious lesion indicators long (keeps cull vars automatically)
+  pivot_longer(
+    cols = all_of(noninf_cols),
+    names_to = "lesion_type",
+    values_to = "has_lesion"
+  ) %>%
+  filter(has_lesion == 1) %>%
+  filter(!is.na(culled_30)) %>%                            # ensure culled_30 present
+  mutate(
+    lesion_type = factor(lesion_type),
+    dim_boxes = factor(dim_boxes)                          # uses your existing dim_boxes
+  )
 
+heat_summ <- heat_data %>%
+  group_by(dim_boxes, lesion_type) %>%
+  summarise(
+    n = n(),
+    cull30_rate = mean(culled_30 == 1, na.rm = TRUE),
+    .groups = "drop"
+  )
 
+ggplot(heat_summ, aes(x = dim_boxes, y = lesion_type, fill = cull30_rate)) +
+  geom_tile(color = "white", linewidth = 0.6) +
+  geom_text(aes(label = paste0(percent(cull30_rate, accuracy = 1), "\n(n=", n, ")")),
+            size = 3.5) +
+  scale_fill_gradient(
+  low = "#FEE8C8",
+  high = "#E34A33",
+  labels = scales::percent_format(accuracy = 1)
+) +
+  labs(
+    title = "30-day cull rate after last trim",
+    subtitle = "Non-infectious lesions only (restricted to last 12 months, last trim, lactating, positive censor time)",
+    x = "DIM at trim (binned)",
+    y = "Lesion type",
+    fill = "Culled ≤30d"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 0, vjust = 0.5),
+    plot.title = element_text(face = "bold")
+  )
 
 
 ```
