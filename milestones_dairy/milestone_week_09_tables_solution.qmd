@@ -72,6 +72,97 @@ source('../functions/fxn_milestone8_solution.R')
 ```
 
 ```{r}
+# test CR function
+
+cr_data <- events_formatted |> 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group, 
+         date_archived, date_event, event, 
+         remark_letters1, protocols_letters1, location_event, R) |> 
+  mutate(floor_date_month = floor_date(date_event, "month")) |>
+  fxn_create_CR_reports(grp_vars = c("location_event", 
+                                     "floor_date_month", 
+                                     "lact_group", "Rstandard"))
+```
+
+
+```{r}
+# table
+
+
+table <- cr_data |> 
+  filter(floor_date_month >= date_max_pull - months(6)) |>
+  select(location_event, floor_date_month,
+         lact_group, `Not Bred Event`,
+         Preg, Total, SPC, CR,CI_lower, CI_upper) |> 
+  mutate(CR = CR*100) |> 
+  arrange(location_event, floor_date_month, lact_group) |>
+  # 1. Group by location_event to "merge" that column into group headers
+  gt(groupname_col = "location_event",
+     rowname_col = "floor_date_month") |> 
+  # 2. Bold the column labels
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  # Optional: Clean up the date display
+  fmt_date(columns = floor_date_month, date_style = "yMMM") |> 
+  fmt_number(c(CR, CI_lower, CI_upper, SPC), 
+             decimals = 1) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  )  |> 
+  tab_spanner(
+    label = "Conception Risk (%)",
+    columns = c(CR, CI_lower, CI_upper)
+  ) |> 
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+  cols_label(
+    floor_date_month = "Month",
+    lact_group = "Lactation Group",
+    CR = "Risk",
+    CI_lower = "Lower CI",
+    CI_upper = "Upper CI"
+      ) 
+  
+  
+table
+  
+```
+
+
+```{r}
+table <- cr_data |> 
+  filter(floor_date_month >= date_max_pull - months(24)) |>
+  select(location_event, floor_date_month,
+         lact_group, `Not Bred Event`,
+         Preg, Total, SPC, CR, CI_lower, CI_upper,
+         warning_CR) |> 
+  mutate(CR = CR * 100) |> 
+  arrange(location_event, desc(floor_date_month), lact_group) |>
+  # 1. Group by BOTH location and date
+  group_by(location_event, floor_date_month) |> 
+  gt() |> 
+  # 2. Bold the column labels
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  # 3. Bold the Group Headers (Location and Date)
+  tab_options(
+    row_group.font.weight = "bold",
+    row_group.background.color = "#f9f9f9" # Light grey to distinguish groups
+  )
+
+table
+```
+
+
+
+
+```{r}
 
 # lame data test new function
 # 
@@ -248,13 +339,7 @@ A few notes: -->
 
 # Report for `r farm_name[[1]]` and `r farm_name[[2]]`
 
--   This report shows data from the past year from
-    **`r format(date_min_pull, "%b %d, %y")` to
-    `r format(date_max_pull, "%b %d, %y")`**.
 
--   For the culling analysis cows were censored on
-    `r format(date_max_pull, "%b %d, %y")` if they were not culled
-    before this date.
 
 ## Objective
 
