@@ -51,6 +51,12 @@ events_formatted <- read_parquet(
 animals <- read_parquet(
   '../data/intermediate_files/animals.parquet')
 
+deno_cal <- read_parquet(
+  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
+  filter(deno_type == "lact_basic" & 
+           calendar_time_period_type == "year") |> 
+  select(-c(contains("dop"), day_of_phase_group))
+
   
 # load GC's functions
 source('../functions/fxn_load_os_fxns.R')
@@ -59,6 +65,9 @@ fxn_load_os_fxns()
 # Load Parnell CR fucntions from Github
 cr_url <- "https://raw.githubusercontent.com/ParnellPharma/ParnellFunctionsPublic/main/parnell_calculate_CR_master.R"
 source(cr_url)
+
+# source iventory functions
+source('../functions/fxn_milestone9_solution.R')
 
 # create variables for inline code
 farm_name <- unique(events_formatted$location_event)
