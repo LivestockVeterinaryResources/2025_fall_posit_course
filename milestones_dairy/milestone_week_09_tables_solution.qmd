@@ -67,7 +67,7 @@ date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
 date_min_pull <- date_max_pull - years(1)
 
 # pull solution data
-source('../functions/fxn_milestone8_solution.R')
+
 
 ```
 
@@ -75,13 +75,14 @@ source('../functions/fxn_milestone8_solution.R')
 # test CR function
 
 cr_data <- events_formatted |> 
-  select(id_animal, date_birth, date_fresh,lact_number, lact_group, 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
          date_archived, date_event, event, 
          remark_letters1, protocols_letters1, location_event, R) |> 
-  mutate(floor_date_month = floor_date(date_event, "month")) |>
+  mutate(floor_date_time = floor_date(date_event, "year")) |>
+  filter(date_event <= date_max_pull - days(40)) |>
   fxn_create_CR_reports(grp_vars = c("location_event", 
-                                     "floor_date_month", 
-                                     "lact_group", "Rstandard"))
+                                     "floor_date_time", 
+                                     "lact_group_basic", "Rstandard"))
 ```
 
 
@@ -90,42 +91,73 @@ cr_data <- events_formatted |>
 
 
 table <- cr_data |> 
-  filter(floor_date_month >= date_max_pull - months(6)) |>
-  select(location_event, floor_date_month,
-         lact_group, `Not Bred Event`,
-         Preg, Total, SPC, CR,CI_lower, CI_upper) |> 
-  mutate(CR = CR*100) |> 
-  arrange(location_event, floor_date_month, lact_group) |>
+  #filter(floor_date_time >= date_max_pull - months(6)) |>
+  select(location_event, floor_date_time,
+         lact_group_basic, `Not Bred Event`,
+         Preg, Total, SPC, CR, CI_lower, CI_upper) |> 
+  mutate(CR = CR*100,
+         CR_graph = CR,
+         lact_group_basic = if_else(lact_group_basic == "LACT > 0",
+                                    "Lactating Cows", lact_group_basic)) |> 
+  arrange(location_event, floor_date_time, lact_group_basic) |>
   # 1. Group by location_event to "merge" that column into group headers
   gt(groupname_col = "location_event",
-     rowname_col = "floor_date_month") |> 
+     rowname_col = "floor_date_time") |> 
   # 2. Bold the column labels
   tab_style(
     style = cell_text(weight = "bold"),
     locations = cells_column_labels()
   ) |> 
   # Optional: Clean up the date display
-  fmt_date(columns = floor_date_month, date_style = "yMMM") |> 
+  fmt_date(columns = floor_date_time, date_style = "year") |> 
   fmt_number(c(CR, CI_lower, CI_upper, SPC), 
              decimals = 1) |> 
+  fmt_number(columns = `Not Bred Event`, decimals = 0) |> 
   tab_options(
     row_group.font.weight = "bold" # Bolds the Location  
   )  |> 
+  cols_merge_range(col_begin = CI_lower,
+                  col_end = CI_upper) |> 
+  cols_label(
+    floor_date_time = "Time Period",
+    lact_group_basic = "Lactation",
+    CR = "Risk",
+    CI_lower = "95% CI",
+    ) |>
+  cols_nanoplot(columns = c(CR_graph),
+                plot_type = "bar",
+                new_col_name = "Plot",
+                new_col_label = md("**Plot**"),
+                reference_line = 50,
+                options = nanoplot_options(data_bar_fill_color = "orange",
+                                           data_bar_stroke_color = "black")
+    ) |> 
+  summary_rows(
+    groups = everything(), # Adds summary to every group
+    columns = c(CR), # Columns you want to summarize
+    fns = list(
+      "Location Average" = ~mean(., na.rm = TRUE)
+    ),
+    fmt = ~fmt_number(., columns = c(CR), decimals = 1)
+    )|> 
   tab_spanner(
-    label = "Conception Risk (%)",
-    columns = c(CR, CI_lower, CI_upper)
-  ) |> 
+    label = "Conception (%)",
+    columns = c(CR, CI_lower, 'Plot')
+  ) |>
     tab_style(
     style = cell_text(weight = "bold"),
     locations = cells_column_spanners()
   ) |> 
-  cols_label(
-    floor_date_month = "Month",
-    lact_group = "Lactation Group",
-    CR = "Risk",
-    CI_lower = "Lower CI",
-    CI_upper = "Upper CI"
-      ) 
+  cols_align(align = "center",
+             columns = everything()) |> 
+  tab_style(locations = cells_summary(),
+             style = list(
+               cell_text(weight = "bold"),
+               cell_fill("lightblue")
+             )
+            ) 
+             
+      
   
   
 table
@@ -133,31 +165,6 @@ table
 ```
 
 
-```{r}
-table <- cr_data |> 
-  filter(floor_date_month >= date_max_pull - months(24)) |>
-  select(location_event, floor_date_month,
-         lact_group, `Not Bred Event`,
-         Preg, Total, SPC, CR, CI_lower, CI_upper,
-         warning_CR) |> 
-  mutate(CR = CR * 100) |> 
-  arrange(location_event, desc(floor_date_month), lact_group) |>
-  # 1. Group by BOTH location and date
-  group_by(location_event, floor_date_month) |> 
-  gt() |> 
-  # 2. Bold the column labels
-  tab_style(
-    style = cell_text(weight = "bold"),
-    locations = cells_column_labels()
-  ) |> 
-  # 3. Bold the Group Headers (Location and Date)
-  tab_options(
-    row_group.font.weight = "bold",
-    row_group.background.color = "#f9f9f9" # Light grey to distinguish groups
-  )
-
-table
-```
 
 
 
