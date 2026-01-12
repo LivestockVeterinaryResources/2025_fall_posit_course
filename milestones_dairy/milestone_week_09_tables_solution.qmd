@@ -66,9 +66,6 @@ fxn_load_os_fxns()
 cr_url <- "https://raw.githubusercontent.com/ParnellPharma/ParnellFunctionsPublic/main/parnell_calculate_CR_master.R"
 source(cr_url)
 
-# source iventory functions
-source('../functions/fxn_milestone9_solution.R')
-
 # create variables for inline code
 farm_name <- unique(events_formatted$location_event)
 
@@ -94,6 +91,113 @@ cr_data <- events_formatted |>
                                      "lact_group_basic", "Rstandard"))
 ```
 
+# Describe Herds
+
+```{r}
+#| label: describe-herds
+
+table <- deno_cal |> 
+  select(location_lact_list, 
+         date_time_period_start,
+         group = 'Lactation Group' , ct_animal_days_elig, 
+         ct_animal_time_periods, ct_animal_lactations,
+         ct_animals) |>
+  mutate(group = if_else(group == "LACT > 0",
+                                    "Adult Cows", group)
+         ) |>
+  gt(groupname_col = "location_lact_list",
+     rowname_col = "date_time_period_start") |> 
+  fmt_date(columns = date_time_period_start,
+           date_style = "year") |> 
+  fmt_number(columns = c(starts_with("ct")), decimals = 0) |> 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+    cols_label(
+      group = "Group",
+    date_time_period_start = "Time Period",
+    ct_animal_days_elig = "Days at risk",
+    ct_animal_time_periods = "DAR Animals",
+    ct_animal_lactations = "Lactations",
+    ct_animals = "Animals"
+    ) |> 
+  tab_spanner(
+    label = "Count of",
+    columns = c(ct_animal_days_elig, ct_animal_time_periods,
+                ct_animal_lactations, ct_animals)
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  ) 
+    
+    
+table
+
+
+```
+  
+```{r}
+#| label: mast
+
+pre_mast <- events_formatted |> 
+  filter(event == "MAST") |> 
+  select(location_event, id_animal_lact, lact_number, date_event,
+         event, protocols, remark, lact_group_basic,
+         dim_event) |> 
+  mutate(mast_60 = if_else(dim_event <=60, 1, 0)) |>
+  fxn_dz_status(id_col = id_animal_lact,
+                disease_cols = "mast_60", 
+                prefix = "mast",
+                gap = 14) |> 
+  mutate(status_mast_60 = if_else(is.na(status_mast_60), 
+                                  "Late", status_mast_60)
+  ) |> 
+  group_by(location_event, id_animal, lact_number,
+           event, protocols, remark,
+           lact_group_basic, dim_event) |>
+  slice_min(order_by = date_event, n = 1, with_ties = FALSE) |> 
+  ungroup() |> 
+  rename(id_animal_lact = id_animal)
+
+mast_60 <- events_formatted |> 
+  left_join(pre_mast,
+            by = c("location_event", "id_animal_lact", "lact_number",
+                   "event", "protocols", "remark",
+                   "date_event", "lact_group_basic", "dim_event")
+            ) |>
+  mutate(
+    status_mast_60 = if_else(is.na(status_mast_60), 
+                             "No Mast", status_mast_60)
+  )
+
+
+cr_data_mast <- mast_60 |> 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
+         date_archived, date_event, event, status_mast_60,
+         remark_letters1, protocols_letters1, location_event, R) |> 
+  mutate(floor_date_time = floor_date(date_event, "year")) |>
+  filter(date_event <= date_max_pull - days(40)) |>
+  filter(lact_number > 0) |>
+  fxn_create_CR_reports(grp_vars = c("location_event", 
+                                     "floor_date_time", 
+                                     "lact_group_basic", "status_mast_60",
+                                     "Rstandard")
+                        )
+
+
+
+
+```
+
 
 ```{r}
 # table
@@ -107,7 +211,7 @@ table <- cr_data |>
   mutate(CR = CR*100,
          CR_graph = CR,
          lact_group_basic = if_else(lact_group_basic == "LACT > 0",
-                                    "Lactating Cows", lact_group_basic)) |> 
+                                    "Adult Cows", lact_group_basic)) |> 
   arrange(location_event, floor_date_time, lact_group_basic) |>
   # 1. Group by location_event to "merge" that column into group headers
   gt(groupname_col = "location_event",
@@ -171,6 +275,75 @@ table <- cr_data |>
   
 table
   
+```
+```{r}
+#| label: mastone-data
+
+table <- cr_data_mast |> 
+  #filter(floor_date_time >= date_max_pull - months(6)) |>
+  select(location_event, floor_date_time, status_mast_60,
+         CR, CI_lower, CI_upper) |> 
+  mutate(CR = CR*100,
+         CR_graph = CR,
+         ) |> 
+  arrange(location_event, floor_date_time) |>
+  # 1. Group by location_event to "merge" that column into group headers
+  gt(groupname_col = "location_event",
+     rowname_col = "floor_date_time") |> 
+  # 2. Bold the column labels
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  # Optional: Clean up the date display
+  fmt_date(columns = floor_date_time, date_style = "year") |> 
+  fmt_number(c(CR, CI_lower, CI_upper), 
+             decimals = 1) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  )  |> 
+  cols_merge_range(col_begin = CI_lower,
+                  col_end = CI_upper) |> 
+  cols_label(
+    floor_date_time = "Time Period",
+    CR = "Risk",
+    CI_lower = "95% CI",
+    ) |>
+  cols_nanoplot(columns = c(CR_graph),
+                plot_type = "bar",
+                new_col_name = "Plot",
+                new_col_label = md("**Plot**"),
+                reference_line = 50,
+                options = nanoplot_options(data_bar_fill_color = "orange",
+                                           data_bar_stroke_color = "black")
+    ) |> 
+  summary_rows(
+    groups = everything(), # Adds summary to every group
+    columns = c(CR), # Columns you want to summarize
+    fns = list(
+      "Location Average" = ~mean(., na.rm = TRUE)
+    ),
+    fmt = ~fmt_number(., columns = c(CR), decimals = 1)
+    )|> 
+  tab_spanner(
+    label = "Conception (%)",
+    columns = c(CR, CI_lower, 'Plot')
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+  cols_align(align = "center",
+             columns = everything()) |> 
+  tab_style(locations = cells_summary(),
+             style = list(
+               cell_text(weight = "bold"),
+               cell_fill("lightblue")
+             )
+            ) 
+
+table
+
 ```
 
 
