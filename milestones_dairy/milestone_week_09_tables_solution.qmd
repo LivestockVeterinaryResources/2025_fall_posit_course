@@ -159,17 +159,21 @@ pre_mast <- events_formatted |>
                 prefix = "mast",
                 gap = 14) |> 
   mutate(status_mast_60 = if_else(is.na(status_mast_60), 
-                                  "Late", status_mast_60)
+                                  "After", status_mast_60)
   ) |> 
   # fix this section a bit more..
   # just keep some variable for joining
   select(id_animal_lact = id_animal, location_event, lact_number,
          mast_60, life_times_mast_60,
          status_mast_60) |> 
-  group_by(location_event, id_animal_lact, lact_number) |>
-  # fix this to 
+  group_by(location_event, id_animal_lact, lact_number, mast_60) |>
+  # get last mast mast_60 just using life time ignores mast_60
   slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
-  ungroup() 
+  ungroup() |> 
+  # now will only end up with 1 row/cow
+  group_by(location_event, id_animal_lact, lact_number) |>
+  slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
+  ungroup()
  
 mast_60 <- events_formatted |> 
   left_join(pre_mast,
@@ -281,8 +285,9 @@ table
 #| label: mastone-data
 
 table <- cr_data_mast |> 
-  #filter(floor_date_time >= date_max_pull - months(6)) |>
+  filter(floor_date_time >= date_max_pull - years(3)) |>
   select(location_event, floor_date_time, status_mast_60,
+         Preg, Total,
          CR, CI_lower, CI_upper) |> 
   mutate(CR = CR*100,
          CR_graph = CR,
@@ -306,7 +311,7 @@ table <- cr_data_mast |>
   cols_merge_range(col_begin = CI_lower,
                   col_end = CI_upper) |> 
   cols_label(
-    floor_date_time = "Time Period",
+    status_mast_60 = "Mast <= 60 DIM",
     CR = "Risk",
     CI_lower = "95% CI",
     ) |>
@@ -318,14 +323,6 @@ table <- cr_data_mast |>
                 options = nanoplot_options(data_bar_fill_color = "orange",
                                            data_bar_stroke_color = "black")
     ) |> 
-  summary_rows(
-    groups = everything(), # Adds summary to every group
-    columns = c(CR), # Columns you want to summarize
-    fns = list(
-      "Location Average" = ~mean(., na.rm = TRUE)
-    ),
-    fmt = ~fmt_number(., columns = c(CR), decimals = 1)
-    )|> 
   tab_spanner(
     label = "Conception (%)",
     columns = c(CR, CI_lower, 'Plot')
@@ -336,12 +333,16 @@ table <- cr_data_mast |>
   ) |> 
   cols_align(align = "center",
              columns = everything()) |> 
-  tab_style(locations = cells_summary(),
-             style = list(
-               cell_text(weight = "bold"),
-               cell_fill("lightblue")
-             )
-            ) 
+  tab_footnote(footnote = md("**After** = Mastitis after 60 days in milk <br>
+                   **New** = First case  <br>
+                   **Repeat** = Multiple cases in gap <br>
+                   **Chronic** = At least 1 case after gap <br>
+                   **No Mast** = No mastitis cases in lactation"),
+              locations = cells_column_labels(columns = status_mast_60 
+                                              ),
+              placement = "right"
+                   
+  )
 
 table
 
