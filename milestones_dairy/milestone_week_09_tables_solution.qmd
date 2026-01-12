@@ -161,18 +161,19 @@ pre_mast <- events_formatted |>
   mutate(status_mast_60 = if_else(is.na(status_mast_60), 
                                   "Late", status_mast_60)
   ) |> 
-  group_by(location_event, id_animal, lact_number,
-           event, protocols, remark,
-           lact_group_basic, dim_event) |>
-  slice_min(order_by = date_event, n = 1, with_ties = FALSE) |> 
-  ungroup() |> 
-  rename(id_animal_lact = id_animal)
-
+  # fix this section a bit more..
+  # just keep some variable for joining
+  select(id_animal_lact = id_animal, location_event, lact_number,
+         mast_60, life_times_mast_60,
+         status_mast_60) |> 
+  group_by(location_event, id_animal_lact, lact_number) |>
+  # fix this to 
+  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
+  ungroup() 
+ 
 mast_60 <- events_formatted |> 
   left_join(pre_mast,
-            by = c("location_event", "id_animal_lact", "lact_number",
-                   "event", "protocols", "remark",
-                   "date_event", "lact_group_basic", "dim_event")
+            by = c("location_event", "id_animal_lact", "lact_number")
             ) |>
   mutate(
     status_mast_60 = if_else(is.na(status_mast_60), 
