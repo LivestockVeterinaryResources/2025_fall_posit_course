@@ -77,19 +77,6 @@ date_min_pull <- date_max_pull - years(1)
 
 ```
 
-```{r}
-# test CR function
-
-cr_data <- events_formatted |> 
-  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
-         date_archived, date_event, event, 
-         remark_letters1, protocols_letters1, location_event, R) |> 
-  mutate(floor_date_time = floor_date(date_event, "year")) |>
-  filter(date_event <= date_max_pull - days(40)) |>
-  fxn_create_CR_reports(grp_vars = c("location_event", 
-                                     "floor_date_time", 
-                                     "lact_group_basic", "Rstandard"))
-```
 
 ```{r}
 #| label: functions to hide my code
@@ -145,179 +132,21 @@ deno_table
 
 }
 
-# heat map of culled 30 with denominator # cows trimmed
+# CR
 
-solutions_heatmap <- function () {
-heat_map_lact <- log_data |>
-  group_by(noninf, lact_group, culled_30) |> 
-  summarise(count = n(), .groups = "drop") |> 
-  group_by(noninf, lact_group) |>
-  mutate(pct = count / sum(count)) |> 
-  ungroup()
-
-heat_map_sum <- log_data |> 
-  group_by(noninf, culled_30) |>
-  summarise(count = n(), .groups = "drop") |>
-  group_by(noninf) |>
-  mutate(pct = count / sum(count),
-         lact_group = "Overall") |> 
-  ungroup()
-
-
-heat_map <- bind_rows(heat_map_lact, heat_map_sum)
- 
-
-heat_plot <- heat_map |> 
-  filter(culled_30 == 1) |>
-  mutate(lact_group = fct_relevel(lact_group, 
-                                  c("LACT 3+", 
-                                    "LACT 2", 
-                                    "LACT 1", 
-                                    "Overall"))                                    ) |> 
-  ggplot(aes(x = noninf, y = fct_rev(lact_group),
-             fill = pct)
-         ) +
-  geom_tile()+
-  geom_text(aes(label = str_glue(
-    "{round(pct * 100, 1)}% ({count})")),
-          color = "black", 
-          size = 3)+
-  scale_fill_viridis_c(name = "% Culled within 30 days",
-                       labels = scales::percent_format(accuracy = 1),
-                       alpha = 0.8,
-                       option = "C")+
-  theme_minimal()+
-  labs(x = "",
-      y = "")+
-  theme(axis.ticks.y=element_blank())
-
-heat_plot
-}
-
-# logistic regression
-
-solutions_logistic <- function () {
-
-log_model <- glm(culled_30 ~ as_factor(noninf), 
-    family = "binomial", data = log_data)
-
-}
-
-
-```
-
-
-# Report for `r farm_name[[1]]` and `r farm_name[[2]]`
-
-```{r}
-
-```
-
-## Objective
-
-The objective of this milestone is start working with multiple herds, create tables, use the denominator data and use external functions. The data and functions you need are loaded in the top chunk. This is in prep for milestone 10 where we will use parameters to run the same report for multiple herds.
-
-The steps for this milestone are as follows (code sections for these steps are below)
-
-1.  Re-Run **step0_master_processing.R**
-2.  Describe the herd size for the past 5 years for the 2 herds
-3.  Run the parnell CR function, by calling **fxn_create_CR_reports**
-    1.  More details about the function can be found [here](https://github.com/ParnellPharma/ParnellFunctionsPublic/blob/main/parnell_calculate_CR_master.R)
-4.  Run the **fxn_dz_status** as it relates to mastitis to determine if type early mastitis case influences conception risk.
-5.  Create tables from the inventory and both conception risk data frames.
-
-# Describe Herds
-
--   Using the deno_cal dataframe recreate this table using the gt table skills you learned this week. You will probably need to look at the package website or use AI to get some of the details.
-
--   Some gt function hints are:
-
-    -   groupname_col and rowname_col inside gt()
-
-    -   fmt_data
-
-    -   fmt_number
-
-    -   tab_style
-
-    -   cols_label
-
-    -   tab_spanner
-
-    -   tab_options
-
-```{r}
-#| label: describe-herds
-
-solutions_deno()
-
-
-```
-
-```{r}
-#| label: mast
-
-pre_mast <- events_formatted |> 
-  filter(event == "MAST") |> 
-  select(location_event, id_animal_lact, lact_number, date_event,
-         event, protocols, remark, lact_group_basic,
-         dim_event) |> 
-  mutate(mast_60 = if_else(dim_event <=60, 1, 0)) |>
-  fxn_dz_status(id_col = id_animal_lact,
-                disease_cols = "mast_60", 
-                prefix = "mast",
-                gap = 14) |> 
-  mutate(status_mast_60 = if_else(is.na(status_mast_60), 
-                                  "After", status_mast_60)
-  ) |> 
-  # fix this section a bit more..
-  # just keep some variable for joining
-  select(id_animal_lact = id_animal, location_event, lact_number,
-         mast_60, life_times_mast_60,
-         status_mast_60) |> 
-  group_by(location_event, id_animal_lact, lact_number, mast_60) |>
-  # get last mast mast_60 just using life time ignores mast_60
-  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
-  ungroup() |> 
-  # now will only end up with 1 row/cow
-  group_by(location_event, id_animal_lact, lact_number) |>
-  slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
-  ungroup()
- 
-mast_60 <- events_formatted |> 
-  left_join(pre_mast,
-            by = c("location_event", "id_animal_lact", "lact_number")
-            ) |>
-  mutate(
-    status_mast_60 = if_else(is.na(status_mast_60), 
-                             "No Mast", status_mast_60)
-  )
-
-
-cr_data_mast <- mast_60 |> 
+solutions_cr <- function () {
+  
+cr_data <- events_formatted |> 
   select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
-         date_archived, date_event, event, status_mast_60,
+         date_archived, date_event, event, 
          remark_letters1, protocols_letters1, location_event, R) |> 
   mutate(floor_date_time = floor_date(date_event, "year")) |>
   filter(date_event <= date_max_pull - days(40)) |>
-  filter(lact_number > 0) |>
   fxn_create_CR_reports(grp_vars = c("location_event", 
                                      "floor_date_time", 
-                                     "lact_group_basic", "status_mast_60",
-                                     "Rstandard")
-                        )
+                                     "lact_group_basic", "Rstandard"))
 
-
-
-
-```
-
-```{r}
-# table
-
-
-table <- cr_data |> 
-  #filter(floor_date_time >= date_max_pull - months(6)) |>
+cr_table <- cr_data |> 
   select(location_event, floor_date_time,
          lact_group_basic, `Not Bred Event`,
          Preg, Total, SPC, CR, CI_lower, CI_upper) |> 
@@ -354,7 +183,6 @@ table <- cr_data |>
                 plot_type = "bar",
                 new_col_name = "Plot",
                 new_col_label = md("**Plot**"),
-                reference_line = 50,
                 options = nanoplot_options(data_bar_fill_color = "orange",
                                            data_bar_stroke_color = "black")
     ) |> 
@@ -382,18 +210,62 @@ table <- cr_data |>
                cell_fill("lightblue")
              )
             ) 
-             
-      
-  
-  
-table
-  
-```
+ cr_table
+}
 
-```{r}
-#| label: mastone-data
+# mast cr data
 
-table <- cr_data_mast |> 
+solutions_mast  <- function () {
+  
+  pre_mast <- events_formatted |> 
+  filter(event == "MAST") |> 
+  select(location_event, id_animal_lact, lact_number, date_event,
+         event, protocols, remark, lact_group_basic,
+         dim_event) |> 
+  mutate(mast_60 = if_else(dim_event <=60, 1, 0)) |>
+  fxn_dz_status(id_col = id_animal_lact,
+                disease_cols = "mast_60", 
+                prefix = "mast",
+                gap = 14) |> 
+  mutate(status_mast_60 = if_else(is.na(status_mast_60), 
+                                  "After", status_mast_60)
+  ) |> 
+  select(id_animal_lact = id_animal, location_event, lact_number,
+         mast_60, life_times_mast_60,
+         status_mast_60) |> 
+  group_by(location_event, id_animal_lact, lact_number, mast_60) |>
+  # get last mast mast_60 just using life time ignores mast_60
+  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
+  ungroup() |> 
+  # now will only end up with 1 row/cow
+  group_by(location_event, id_animal_lact, lact_number) |>
+  slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
+  ungroup()
+ 
+mast_60 <- events_formatted |> 
+  left_join(pre_mast,
+            by = c("location_event", "id_animal_lact", "lact_number")
+            ) |>
+  mutate(
+    status_mast_60 = if_else(is.na(status_mast_60), 
+                             "No Mast", status_mast_60)
+  )
+
+
+cr_data_mast <- mast_60 |> 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
+         date_archived, date_event, event, status_mast_60,
+         remark_letters1, protocols_letters1, location_event, R) |> 
+  mutate(floor_date_time = floor_date(date_event, "year")) |>
+  filter(date_event <= date_max_pull - days(40)) |>
+  filter(lact_number > 0) |>
+  fxn_create_CR_reports(grp_vars = c("location_event", 
+                                     "floor_date_time", 
+                                     "lact_group_basic", "status_mast_60",
+                                     "Rstandard")
+                        )
+
+  mast_table <- cr_data_mast |> 
   filter(floor_date_time >= date_max_pull - years(3)) |>
   select(location_event, floor_date_time, status_mast_60,
          Preg, Total,
@@ -453,308 +325,122 @@ table <- cr_data_mast |>
                    
   )
 
-table
+mast_table
+
+}
+
 
 ```
+
+
+# Report for `r farm_name[[1]]` and `r farm_name[[2]]`
+
+## Objective
+
+The objective of this milestone is start working with multiple herds, create tables, use the denominator data and use external functions. The data and functions you need are loaded in the top chunk. This is in prep for milestone 10 where we will use parameters to run the same report for multiple herds.
+
+The steps for this milestone are as follows (code sections for these steps are below)
+
+1.  Re-Run **step0_master_processing.R**
+2.  Describe the herd size for the past 5 years for the 2 herds
+3.  Run the parnell CR function, by calling **fxn_create_CR_reports**
+    1.  More details about the function can be found [here](https://github.com/ParnellPharma/ParnellFunctionsPublic/blob/main/parnell_calculate_CR_master.R)
+4.  Run the **fxn_dz_status** as it relates to mastitis to determine if type early mastitis case influences conception risk.
+5.  Create tables from the inventory and both conception risk data frames.
+
+## Describe Herds
+
+-   Using the deno_cal dataframe recreate this table using the gt table skills you learned this week. You will probably need to look at the package website or use AI to get some of the details.
+
+-   Some gt function hints are:
+
+    -   groupname_col and rowname_col inside gt()
+
+    -   fmt_data
+
+    -   fmt_number
+
+    -   tab_style
+
+    -   cols_label
+
+    -   tab_spanner
+
+    -   tab_options
 
 ```{r}
+#| label: describe-herds
 
-# lame data test new function
-# 
-all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury", 
-                             "cork", "other", "hemorrhage",
-                             "sole_fracture", "toe_ulcer", "thin",
-                             "inf", "noninf", "toe", "axial", "lesion")
-
-diseases <- c("inf", "noninf", "lesion")
-
-lame_data <- events_formatted |> 
-  select(id_animal, date_birth, date_fresh,lact_number, lact_group, 
-         date_archived, date_event, event, 
-         remark_letters1, protocols_letters1, location_event) |> 
-  filter(event %in% c("LAME", "TRIM")) |>
-  fxn_code_lesions(protocol_var = protocols_letters1,
-                  remark_var = remark_letters1) |> 
-  # fix ab and NA issues
-  filter(!is.na(trimonly)) |>
-  mutate(noninf = case_when(
-    other == 1 & str_detect(protocols_letters1, "Ab") ~ 1,
-    .default = noninf),
-    # remove other catergory if abscess is found
-    other = case_when(
-      other == 1 & str_detect(protocols_letters1, "Ab") ~ 0,
-      .default = other)
-    ) |> 
-  fxn_collapse_lesions(lesions = all_lesions) |> 
-  fxn_trim_vars(location_event, id_animal,
-                date_var = date_event,
-                trimonly_var = trimonly) |> 
-  fxn_dz_status(disease_cols = diseases,
-                event_filter = trimonly == 0) |> 
-# join with animals to get left date
-  left_join(animals |> 
-              select(id_animal, date_sold, date_died, date_left),
-            by = "id_animal") |> 
-# add cull data
-  mutate(
-    # create culling variables
-    culled_ever = if_else(is.na(date_left), 0, 1),
-    days_to_cull = date_left - date_event,
-    # temp censor date need to adjust
-    date_censor = ymd(date_max_pull) 
-  ) |> 
-  mutate(days_to_censor_cull = case_when(culled_ever == 1 ~
-                                     days_to_cull,
-                                    # cows not culled
-                                    culled_ever == 0 ~
-                                      date_censor - 
-                                                    date_event,
-                                    .default =  NA
-                                    ),
-    across(starts_with("days"), as.numeric)
-    ) |> 
-  group_by(location_event, id_animal) |> 
-  mutate(culled_last_trim = 
-           if_else(culled_ever == 1 & !is.na(days_to_next_trim), 0, 
-                   culled_ever),
-         culled_30 = if_else(culled_ever == 1 & 
-                               days_to_cull <=30, 1, 0
-                             )
-         )|>
-  ungroup() |> 
-  select(location_event, id_animal, date_birth, lact_number, lact_group,
-         date_event,
-         date_left, date_died, date_sold,
-         lesion, inf, noninf, trimonly, times_trimmed, date_censor, 
-         days_to_cull, days_to_censor_cull,culled_ever, culled_last_trim,
-         culled_30, date_prev_trim, days_to_next_trim, 
-         starts_with("life_"), starts_with("status_")
-         )
-
-# 
-#   filter(lact>0) |>
-#   filter(culled_last_trim == 1) |> 
-#   filter(date_event >= date_max_pull - months(12))
-
-
-
+solutions_deno()
 
 
 ```
 
+## Conception Risk Tables
 
-```{=html}
-<!-- The objective of this milestone is to build on the report and functions you used last milestone to create denominator and conception risk tables for data from 2 different herds.  
-A few notes: -->
-```
+-  Use the Parnell CR function to compare the conception risks between the 2 herds and recreate this table
+
+1.  The **fxn_create_CR_reports** function will work if you just pipe the events_formatted dataframe to it.
+2.  You will need define the grp_vars inside the function
+   - the last one should be Rstandard 
+   - the table uses lact_group_basic as one of the variables to group the data
+3. for the table use some of the same gt function you used in describing the herd sizes.
+-  additional functions to explore are:
+  - summary_rows
+  - cols_nanoplot
+  _ cols_merge_range
+   
 
 ```{r}
-#| label: your code
-#| echo: TRUE
+#| label: create-cr_table
 
-# put your code here to create the required data frame.
-# name it solution_data
-
-# you will need to use these functions and vectors with these arguments at some point in your code.
-
-all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury", 
-                             "cork", "other", "hemorrhage",
-                             "sole_fracture", "toe_ulcer", "thin",
-                             "inf", "noninf", "toe", "axial", "lesion")
-
-diseases <- c("inf", "noninf", "lesion")
-
-# solution_data <- 
-
-# fxn_collapse_lesions(lesions = all_lesions) |> 
-#   fxn_trim_vars(location_event, id_animal,
-#                 date_var = date_event,
-#                 trimonly_var = trimonly) |> 
-#   fxn_dz_status(disease_cols = diseases,
-#                 event_filter = trimonly == 0)
-
+solutions_cr()
 
 ```
+   
+## Mastitis and Conception Risk
+
+Now recreate the table low were a variable was created to determine if a cow had mastitis in her first 60 DIM.
+Once you create the new mastitis variable then run the fxn_dz_status
+-  The gap should be 14 days
+-  If the cow had mastitis in the first 60 DIM then she will be classified as
+-- "New" if it was her first case  
+-- "Repeat" if it was a subsequent case within the gap
+-- "Chronic" if she had at least 1 case after the gap
+- After running this function 
+-- assign cows that had mastitis >60 DIM as "After"
+-- merge the data back with events formatted. I have provided some code below to help you get started
+- After you merged the mastitis status variable back into events_formatted run the fxn_create_CR_reports function again to get the conception risk by mastitis status
+
 
 ```{r}
-#| label: create-solution-data
+#| label: mast
 
-solution_data <- lame_data
+solutions_mast()
+
+# code to help you
+# run this after you've run fxn_disease_status and before you join back to events_formatted
+
+# your code that runs fxn_dz_status should create this data frame
+# select(id_animal_lact = id_animal, location_event, lact_number,
+#          mast_60, life_times_mast_60,
+#          status_mast_60) |> 
+#   group_by(location_event, id_animal_lact, lact_number, mast_60) |>
+#   # get last mast mast_60 just using life time ignores mast_60
+#   slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
+#   ungroup() |> 
+#   # now will only end up with 1 row/cow
+#   group_by(location_event, id_animal_lact, lact_number) |>
+#   slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
+#   ungroup()
+
+# then join back to events_formatted
  
-waldo::compare(solution_data, solution)
 
 
 
 ```
 
-## Visualize Data
-
-### Violin plot
-
-Then on the solution_data table.
-
--   Create a violin graph that shows the distribution of time to culling for cows with any lesion.
-    -   restrict data to
-        -   just the past 12 months
-        -   data from the cow's last trimming
-        -   lactating cows only
-        -   positive days_to_censor_cull numbers only
--   To compare your restricted data to the solution data use
-    -   *waldo::compare(log_data, restricted_data)*
-
-```{r}
-#| label: visualize-culling
-#| echo: true
-
-# put your visualization category code here
-
-solutions_violin()
-
-
-```
-
-### Heat Map
-
--   For non infectious lesions create a heat map similar to this using the culled_30 variable.
--   Restrict the data using the same criteria as above.
-
-```{r}
-#| label: fig-example_heat
-#| echo: true
-
-solutions_heatmap()
-
-
-
-
-
-
-```
-
-# Modelling
-
-At times it is useful to create a model to determine if the differences between culling risks between groups are important. Since we are modelling culling one approach is to use logistic regression to do this. Interpreting the outputs from these models can be harder to explain as typically they output odds ratios which aren't commonly used by people other then researchers/data geeks. For this reason we should turn the model outputs back into risks.
-
-In the section below create a logistic model that models the impact of non_infectious lesion status on culling at 30 days. - Name the model output log_model. \_ Ignore lactation for this model. There are ways to account for lactation but we will keep it simple for now. - We have provide the code to make looking at the model output and to turn it into risks.
-
-```{r}
-#| label: fig-example_logistic
-#| echo: true
-
-log_model <- solutions_logistic()
-
-log_model_results <- tidy(log_model, exponentiate = TRUE,
-                      conf.int = TRUE) |> 
-  rename(oddsratio = estimate) |> 
-  mutate(
-    # Format p-value to 4 decimal places
-    p.value = number(p.value, accuracy = 0.00000001),
-    # Optional: Format OR and CI for readability
-    estimate = number(oddsratio, accuracy = 0.01),
-    conf.low = number(conf.low, accuracy = 0.01),
-    conf.high = number(conf.high, accuracy = 0.01)
-  )
-
-log_model_results |> 
-  gt()
-
-```
-
-### Logistic Model Risks
-
-```{r}
-#| label: fig-example_logistic_risks
-#| echo: true
-
-log_model_risks <- avg_predictions(log_model, 
-                               variables = c("noninf"))
-
-log_model_risks <- log_model_risks |>  
-  select(noninf,
-    Risk = estimate,
-         conf.low,
-         conf.high) |> 
-  mutate(
-    Risk = number(Risk*100, accuracy = 0.1),
-    conf.low = number(conf.low*100, accuracy = 0.1),
-    conf.high = number(conf.high*100, accuracy = 0.1)
-  ) |> 
-  gt()
-
-log_model_risks
-
-
-```
-
-You will notice the risks from the logistic model should be the same as the overall row in the heat map, but now we have confidence intervals around them to give us a sense of the uncertainty of the risk.
-
-## Survival Analysis
-
-One problem with using logistic regression and risks to deal with culling is that we are likely underestimating the risk of culling since some cows may be censored before they are culled. In our example censoring would occur if it has not been 30 days since a cow was trimmed. A better approach to deal with this is to use survival analysis.
-
-Below we have provided code to create a Kaplan Meier survival curve and table to look at the impact of non infectious lesions on culling risk over time. You will notice that the risk estimates are higher now that we are accounting for censoring. A good quick read about survival analysis can be found [here](https://www.emilyzabor.com/survival-analysis-in-r.html#kaplan-meier-plots)
-
-```{r}
-#| label: fig-example_km
-#| echo: true
-
-# survival analysis
-# km anaylsys
-
-
-km_fit <- survfit2(Surv(time = days_to_censor_cull,
-                event = culled_last_trim) ~ noninf, 
-data = log_data)
-
-surv_plot <- km_fit |> 
-  ggsurvfit(
-    type = "risk"
-  )+
-  add_confidence_interval()+
-  add_quantile()+
-  scale_ggsurvfit()+
-  scale_fill_viridis_d(name = "Non-Infectious Lesion Status")+
-  scale_color_viridis_d(name = "Non-Infectious Lesion Status")+
-  labs(x = "Days to Culling after Trim",
-       y = "Percent of Cows Culled")+
-  theme_minimal()+
-  theme(legend.position = "bottom")
-
-surv_plot
-```
-
-```{r}
-#| label: fig-example_km_table
-#| echo: true
-
-# times are adjustable
-
-surv_table <- km_fit |>
-  tbl_survfit(
-    times = c(7, 30, 60, 180),
-    label = " ",
-    type = "risk",
-    label_header = "{time} Days"
-  ) %>%
-  as_flex_table() %>% # makes formatting and pdf better
-  add_header_row(
-    top = TRUE,
-    values = c(
-      "Non-Infectious Lesion Status",
-      "% Culled (Confidence Interval) at",
-      "",
-      "", ""
-    )
-  ) %>%
-  bold(i = 1, bold = TRUE, part = "header") %>% # bolds headers
-  bold(i = 2, bold = TRUE, part = "header") %>%
-  merge_at(i = 1:2, j = 1, part = "header") %>% # merges 1st row
-  merge_at(i = 1, j = 2:5, part = "header") # merges top columns
-
-surv_table
-
-
-```
 
 # Extension
 
@@ -763,37 +449,5 @@ For this week extension continue to create standard things you would want to rep
 Ideas
 
 -   Try the code with other diseases like mastitis or culture information
--   Try to use the survival code to get estimates for time to repeat or recheck?
-
-# Code for Median Time table
-
-```{r}
-#| label: fig-example_km_median_table
-#| echo: true
-
-# times are adjustable
-
-surv_table <- km_fit |>
-  tbl_survfit(
-    probs = c(.25, .50, .75),
-    label = " ",
-    label_header = "{prob*100} %"
-  ) %>%
-  as_flex_table() %>% # makes formatting and pdf better
-  add_header_row(
-    top = TRUE,
-    values = c(
-      "Non-Infectious Lesion Status",
-      "Days to Cullling (Confidence Interval) at",
-      "", ""
-    )
-  ) %>%
-  bold(i = 1, bold = TRUE, part = "header") %>% # bolds headers
-  bold(i = 2, bold = TRUE, part = "header") %>%
-  merge_at(i = 1:2, j = 1, part = "header") %>% # merges 1st row
-  merge_at(i = 1, j = 2:4, part = "header") # merges top columns
-
-surv_table
 
 
-```
