@@ -40,8 +40,8 @@ source("functions/fxn_treatment.R")
 # SETUP-----------------------------
 
 ## Set custom functions----
-
 #**** Modify This Section***
+#*
 ## Note: you can build your own custom functions for any of these.
 ## If you choose to use custom functions you must source them when you assign them
 
@@ -57,6 +57,12 @@ denominator_time_periods<-c(#21,
                             30, 
                             #90, 
                             365) #do NOT delete the yearly option or you will break the data_dictionary
+
+### day of phase parameters-----------------------------------
+## set the parameters for grouping by DIM or heifers by days of age
+set_cut_by_days = 100 #number of days in each group
+set_top_cut = 400 #the final group for cow DIM with be this number and anything higher
+set_top_cut_hfr = 700 #the final group for heifer days of age with be this number and anything higher
 
 ### parsing---------
 ## parse_free_text options:
@@ -92,7 +98,6 @@ set_outcome_gap_lactation <- 1
 
 ## Set up processing -------------------------------
 #**** Modify This Section***
-#*
 
 ### clean up old data ---------------------------------
 #*** DANGER*** make sure you understand this setting if you change it to TRUE
@@ -144,15 +149,27 @@ source("step2_create_intermediate_files.R") # fundamental files: animals.parquet
 ####Create denominator files by time periods ------------------------
 for (i in seq_along(denominator_time_periods)){
   quarto::quarto_render(
-    input = "step3_denominators_by_lactation_group.qmd",
+    input = "step3_denominators_by_time_period.qmd",
     execute_params = list(
       denominator_granularity = denominator_time_periods[[i]],
-      cut_by_days = 30,
-      top_cut = 400,
-      top_cut_hfr = 500
+      cut_by_days = set_cut_by_days,
+      top_cut = set_top_cut,
+      top_cut_hfr = set_top_cut_hfr
     )
   )
 }
+
+####Create denominator files by CALENDAR time periods ------------------------
+  quarto::quarto_render(
+    input = "step3_denominators_by_calendar_time.qmd",
+    execute_params = list(
+      cut_by_days = set_cut_by_days,
+      top_cut = set_top_cut,
+      top_cut_hfr = set_top_cut_hfr
+    )
+  )
+
+#### run the report named (report_how_to_use_denominators.qmd) to learn to use denominators
 
 ##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
 rm(list = ls()) # clean environment
@@ -170,11 +187,11 @@ quarto::quarto_render("report_data_dictionary.qmd")
 ## Gerard's lameness report ---------------------------
 quarto::quarto_render("report_explore_lame.qmd")
 
-
+## Example reports ---------------------------
+quarto::quarto_render("report_how_to_use_denominators.qmd")
 
 
 # FUTURE STUFF ---------------------------
-# quarto::quarto_render('step3_create_denominators_by_group.qmd') #(under development)
 
 # quarto::quarto_render('step3_report_disease_template.qmd')
 # quarto::quarto_render('animal_counts.qmd')

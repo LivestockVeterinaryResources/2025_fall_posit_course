@@ -155,7 +155,7 @@ lame_data <- events_formatted |>
 
 ```{r}
 #| label: functions to hide my code
-#| include: false
+#| echo: true
 
 solutions_violin <- function () {
   
@@ -542,3 +542,37 @@ Ideas
     information
 -   Try to use the survival code to get estimates for time to repeat or
     recheck?
+    
+# Code for Median Time table
+
+```{r}
+#| label: fig-example_km_median_table
+#| echo: true
+
+# times are adjustable
+
+surv_table <- km_fit |>
+  tbl_survfit(
+    probs = c(.25, .50, .75),
+    label = " ",
+    label_header = "{prob*100} %"
+  ) %>%
+  as_flex_table() %>% # makes formatting and pdf better
+  add_header_row(
+    top = TRUE,
+    values = c(
+      "Non-Infectious Lesion Status",
+      "Days to Cullling (Confidence Interval) at",
+      "", ""
+    )
+  ) %>%
+  bold(i = 1, bold = TRUE, part = "header") %>% # bolds headers
+  bold(i = 2, bold = TRUE, part = "header") %>%
+  merge_at(i = 1:2, j = 1, part = "header") %>% # merges 1st row
+  merge_at(i = 1, j = 2:4, part = "header") # merges top columns
+
+surv_table
+
+
+```
+
