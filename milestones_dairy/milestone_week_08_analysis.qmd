@@ -128,17 +128,12 @@ with the events_formatted and animals table.
         eligible to be culled. In this dataset this would be the last
         date any event was entered in the data set
     -   **days_to_cull:** days from any event(Trim or Lame ) to culling
-    -   **days_censor_cull:** This combines the above 2 items to
-        calculate days from the event of interest (trim/lame) to culling
-        or censor_date if not culled
-    -   **culled_ever:** For all rows, 1 if the cow was culled, 0 if not
-        culled
-    -   **culled_last_trim:** For each row/cow, 1 if the cow was culled
-        after that trim without being in the chute again. 0 if not
-        culled after that trim or if she was trimmed again
-    -   **culled_30**: 1 if the cow was culled \<=30 days after her
-        trim/lame event 0 if not
-7.  Visualize this culling data
+    -   **days_to_censor_cull:** This combines the above 2 items to calculate days from the event of interest (trim/lame) to culling or censor_date
+        if not culled
+    -   **culled_ever:** For all rows, 1 if the cow was culled, 0 if not culled
+    -   **culled_last_trim:** For each row/cow, 1 if the cow was culled after that trim without being in the chute again. 0 if not culled after that trim or if she was trimmed again
+    -   **culled_30**: 1 if the cow was culled \<=30 days after her trim/lame event 0 if not
+7.  Visualize this culling data using both a violin plot and heat map
 8.  Create some summary statistics of this data using both logistic
     regression and compare that the provided survival analysis functions
 
