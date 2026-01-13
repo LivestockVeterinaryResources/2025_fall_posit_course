@@ -77,7 +77,6 @@ date_min_pull <- date_max_pull - years(1)
 
 ```
 
-
 ```{r}
 #| label: functions to hide my code
 #| echo: true
@@ -332,7 +331,6 @@ mast_table
 
 ```
 
-
 # Report for `r farm_name[[1]]` and `r farm_name[[2]]`
 
 ## Objective
@@ -378,18 +376,19 @@ solutions_deno()
 
 ## Conception Risk Tables
 
--  Use the Parnell CR function to compare the conception risks between the 2 herds and recreate this table
+Use the Parnell CR function to compare the conception risks between the 2 herds and recreate this table
 
 1.  The **fxn_create_CR_reports** function will work if you just pipe the events_formatted dataframe to it.
 2.  You will need define the grp_vars inside the function
-   - the last one should be Rstandard 
-   - the table uses lact_group_basic as one of the variables to group the data
-3. for the table use some of the same gt function you used in describing the herd sizes.
--  additional functions to explore are:
-  - summary_rows
-  - cols_nanoplot
-  _ cols_merge_range
-   
+
+-   the last one should be Rstandard
+-   the table uses lact_group_basic as one of the variables to group the data
+
+3.  for the table use some of the same gt function you used in describing the herd sizes.
+
+-   additional functions to explore are:
+-   summary_rows
+-   cols_nanoplot \_ cols_merge_range
 
 ```{r}
 #| label: create-cr_table
@@ -397,21 +396,36 @@ solutions_deno()
 solutions_cr()
 
 ```
-   
+
 ## Mastitis and Conception Risk
 
 Now recreate the table low were a variable was created to determine if a cow had mastitis in her first 60 DIM.
-Once you create the new mastitis variable then run the fxn_dz_status
--  The gap should be 14 days
--  If the cow had mastitis in the first 60 DIM then she will be classified as
--- "New" if it was her first case  
--- "Repeat" if it was a subsequent case within the gap
--- "Chronic" if she had at least 1 case after the gap
-- After running this function 
--- assign cows that had mastitis >60 DIM as "After"
--- merge the data back with events formatted. I have provided some code below to help you get started
-- After you merged the mastitis status variable back into events_formatted run the fxn_create_CR_reports function again to get the conception risk by mastitis status
 
+1.  Once you create the new mastitis variable then run the **fxn_dz_status**
+
+    -   The gap should be 14 days
+
+    -   If the cow had mastitis in the first 60 DIM then she will be classified as
+
+        -   "New" if it was her first case
+
+        -   "Repeat" if it was a subsequent case within the gap
+
+        -   "Chronic" if she had at least 1 case after the gap
+
+2.  After running this function
+
+    -   assign cows that had mastitis \>60 DIM as "After"
+
+3.  Merge the data back with events formatted.
+
+    -   I have provided some code below to help you get started.
+
+    -   After the join, cows with no mastitis events should be coded as No Mast
+
+4.  After you merged the mastitis status variable back into events_formatted run the **fxn_create_CR_reports** function again to get the conception risk by mastitis status
+
+5.  Then create a table to show the results
 
 ```{r}
 #| label: mast
@@ -441,7 +455,6 @@ solutions_mast()
 
 ```
 
-
 # Extension
 
 For this week extension continue to create standard things you would want to report or incorporate modeling techniques to explore the data
@@ -449,5 +462,3 @@ For this week extension continue to create standard things you would want to rep
 Ideas
 
 -   Try the code with other diseases like mastitis or culture information
-
-
