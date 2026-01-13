@@ -1,0 +1,464 @@
+---
+title: "Week 9 Milestone Tables"
+author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
+date: "`r Sys.Date()`"
+format:
+  html:
+    page-layout: full
+    theme: flatly
+    df_print: paged
+    toc: true
+    toc-location: left
+    number-sections: false
+    code-fold: true
+execute:
+  message: false
+  warning: false
+  echo: false
+embed-resources: true
+params:
+  event:
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  broom,
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  survival,
+  survminer,
+  ggsurvfit,
+  flextable,
+  gtsummary,
+  marginaleffects,
+  scales,
+  zoo
+  )
+
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet') 
+
+animals <- read_parquet(
+  '../data/intermediate_files/animals.parquet')
+
+deno_cal <- read_parquet(
+  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
+  filter(deno_type == "lact_basic" & 
+           calendar_time_period_type == "year") |> 
+  select(-c(contains("dop"), day_of_phase_group))
+
+  
+# load GC's functions
+source('../functions/fxn_load_os_fxns.R')
+fxn_load_os_fxns()
+
+# Load Parnell CR fucntions from Github
+cr_url <- "https://raw.githubusercontent.com/ParnellPharma/ParnellFunctionsPublic/main/parnell_calculate_CR_master.R"
+source(cr_url)
+
+# create variables for inline code
+farm_name <- unique(events_formatted$location_event)
+
+date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
+date_min_pull <- date_max_pull - years(1)
+
+# pull solution data
+
+
+```
+
+```{r}
+#| label: functions to hide my code
+#| echo: true
+
+solutions_deno <- function () {
+  
+deno_table <- deno_cal |> 
+  select(location_lact_list, 
+         date_time_period_start,
+         group = 'Lactation Group' , ct_animal_days_elig, 
+         ct_animal_time_periods, ct_animal_lactations,
+         ct_animals) |>
+  mutate(group = if_else(group == "LACT > 0",
+                                    "Adult Cows", group)
+         ) |>
+  gt(groupname_col = "location_lact_list",
+     rowname_col = "date_time_period_start") |> 
+  fmt_date(columns = date_time_period_start,
+           date_style = "year") |> 
+  fmt_number(columns = c(starts_with("ct")), decimals = 0) |> 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+    cols_label(
+      group = "Group",
+    date_time_period_start = "Time Period",
+    ct_animal_days_elig = "Days at risk",
+    ct_animal_time_periods = "DAR Animals",
+    ct_animal_lactations = "Lactations",
+    ct_animals = "Animals"
+    ) |> 
+  tab_spanner(
+    label = "Count of",
+    columns = c(ct_animal_days_elig, ct_animal_time_periods,
+                ct_animal_lactations, ct_animals)
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  ) 
+    
+    
+deno_table
+
+}
+
+# CR
+
+solutions_cr <- function () {
+  
+cr_data <- events_formatted |> 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
+         date_archived, date_event, event, 
+         remark_letters1, protocols_letters1, location_event, R) |> 
+  mutate(floor_date_time = floor_date(date_event, "year")) |>
+  filter(date_event <= date_max_pull - days(40)) |>
+  fxn_create_CR_reports(grp_vars = c("location_event", 
+                                     "floor_date_time", 
+                                     "lact_group_basic", "Rstandard"))
+
+cr_table <- cr_data |> 
+  select(location_event, floor_date_time,
+         lact_group_basic, `Not Bred Event`,
+         Preg, Total, SPC, CR, CI_lower, CI_upper) |> 
+  mutate(CR = CR*100,
+         CR_graph = CR,
+         lact_group_basic = if_else(lact_group_basic == "LACT > 0",
+                                    "Adult Cows", lact_group_basic)) |> 
+  arrange(location_event, floor_date_time, lact_group_basic) |>
+  # 1. Group by location_event to "merge" that column into group headers
+  gt(groupname_col = "location_event",
+     rowname_col = "floor_date_time") |> 
+  # 2. Bold the column labels
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  # Optional: Clean up the date display
+  fmt_date(columns = floor_date_time, date_style = "year") |> 
+  fmt_number(c(CR, CI_lower, CI_upper, SPC), 
+             decimals = 1) |> 
+  fmt_number(columns = `Not Bred Event`, decimals = 0) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  )  |> 
+  cols_merge_range(col_begin = CI_lower,
+                  col_end = CI_upper) |> 
+  cols_label(
+    floor_date_time = "Time Period",
+    lact_group_basic = "Lactation",
+    CR = "Risk",
+    CI_lower = "95% CI",
+    ) |>
+  cols_nanoplot(columns = c(CR_graph),
+                plot_type = "bar",
+                new_col_name = "Plot",
+                new_col_label = md("**Plot**"),
+                options = nanoplot_options(data_bar_fill_color = "orange",
+                                           data_bar_stroke_color = "black")
+    ) |> 
+  summary_rows(
+    groups = everything(), # Adds summary to every group
+    columns = c(CR), # Columns you want to summarize
+    fns = list(
+      "Location Average" = ~mean(., na.rm = TRUE)
+    ),
+    fmt = ~fmt_number(., columns = c(CR), decimals = 1)
+    )|> 
+  tab_spanner(
+    label = "Conception (%)",
+    columns = c(CR, CI_lower, 'Plot')
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+  cols_align(align = "center",
+             columns = everything()) |> 
+  tab_style(locations = cells_summary(),
+             style = list(
+               cell_text(weight = "bold"),
+               cell_fill("lightblue")
+             )
+            ) 
+ cr_table
+}
+
+# mast cr data
+
+solutions_mast  <- function () {
+  
+  pre_mast <- events_formatted |> 
+  filter(event == "MAST") |> 
+  select(location_event, id_animal_lact, lact_number, date_event,
+         event, protocols, remark, lact_group_basic,
+         dim_event) |> 
+  mutate(mast_60 = if_else(dim_event <=60, 1, 0)) |>
+  fxn_dz_status(id_col = id_animal_lact,
+                disease_cols = "mast_60", 
+                prefix = "mast",
+                gap = 14) |> 
+  mutate(status_mast_60 = if_else(is.na(status_mast_60), 
+                                  "After", status_mast_60)
+  ) |> 
+  select(id_animal_lact = id_animal, location_event, lact_number,
+         mast_60, life_times_mast_60,
+         status_mast_60) |> 
+  group_by(location_event, id_animal_lact, lact_number, mast_60) |>
+  # get last mast mast_60 just using life time ignores mast_60
+  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
+  ungroup() |> 
+  # now will only end up with 1 row/cow
+  group_by(location_event, id_animal_lact, lact_number) |>
+  slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
+  ungroup()
+ 
+mast_60 <- events_formatted |> 
+  left_join(pre_mast,
+            by = c("location_event", "id_animal_lact", "lact_number")
+            ) |>
+  mutate(
+    status_mast_60 = if_else(is.na(status_mast_60), 
+                             "No Mast", status_mast_60)
+  )
+
+
+cr_data_mast <- mast_60 |> 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
+         date_archived, date_event, event, status_mast_60,
+         remark_letters1, protocols_letters1, location_event, R) |> 
+  mutate(floor_date_time = floor_date(date_event, "year")) |>
+  filter(date_event <= date_max_pull - days(40)) |>
+  filter(lact_number > 0) |>
+  fxn_create_CR_reports(grp_vars = c("location_event", 
+                                     "floor_date_time", 
+                                     "lact_group_basic", "status_mast_60",
+                                     "Rstandard")
+                        )
+
+  mast_table <- cr_data_mast |> 
+  filter(floor_date_time >= date_max_pull - years(3)) |>
+  select(location_event, floor_date_time, status_mast_60,
+         Preg, Total,
+         CR, CI_lower, CI_upper) |> 
+  mutate(CR = CR*100,
+         CR_graph = CR,
+         ) |> 
+  arrange(location_event, floor_date_time) |>
+  # 1. Group by location_event to "merge" that column into group headers
+  gt(groupname_col = "location_event",
+     rowname_col = "floor_date_time") |> 
+  # 2. Bold the column labels
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  # Optional: Clean up the date display
+  fmt_date(columns = floor_date_time, date_style = "year") |> 
+  fmt_number(c(CR, CI_lower, CI_upper), 
+             decimals = 1) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  )  |> 
+  cols_merge_range(col_begin = CI_lower,
+                  col_end = CI_upper) |> 
+  cols_label(
+    status_mast_60 = "Mast <= 60 DIM",
+    CR = "Risk",
+    CI_lower = "95% CI",
+    ) |>
+  cols_nanoplot(columns = c(CR_graph),
+                plot_type = "bar",
+                new_col_name = "Plot",
+                new_col_label = md("**Plot**"),
+                reference_line = 50,
+                options = nanoplot_options(data_bar_fill_color = "orange",
+                                           data_bar_stroke_color = "black")
+    ) |> 
+  tab_spanner(
+    label = "Conception (%)",
+    columns = c(CR, CI_lower, 'Plot')
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+  cols_align(align = "center",
+             columns = everything()) |> 
+  tab_footnote(footnote = md("**After** = Mastitis after 60 days in milk <br>
+                   **New** = First case  <br>
+                   **Repeat** = Multiple cases in gap <br>
+                   **Chronic** = At least 1 case after gap <br>
+                   **No Mast** = No mastitis cases in lactation"),
+              locations = cells_column_labels(columns = status_mast_60 
+                                              ),
+              placement = "right"
+                   
+  )
+
+mast_table
+
+}
+
+
+```
+
+# Report for `r farm_name[[1]]` and `r farm_name[[2]]`
+
+## Objective
+
+The objective of this milestone is start working with multiple herds, create tables, use the denominator data and use external functions. The data and functions you need are loaded in the top chunk. This is in prep for milestone 10 where we will use parameters to run the same report for multiple herds.
+
+The steps for this milestone are as follows (code sections for these steps are below)
+
+1.  Re-Run **step0_master_processing.R**
+2.  Describe the herd size for the past 5 years for the 2 herds
+3.  Run the parnell CR function, by calling **fxn_create_CR_reports**
+    1.  More details about the function can be found [here](https://github.com/ParnellPharma/ParnellFunctionsPublic/blob/main/parnell_calculate_CR_master.R)
+4.  Run the **fxn_dz_status** as it relates to mastitis to determine if type early mastitis case influences conception risk.
+5.  Create tables from the inventory and both conception risk data frames.
+
+## Describe Herds
+
+-   Using the deno_cal dataframe recreate this table using the gt table skills you learned this week. You will probably need to look at the package website or use AI to get some of the details.
+
+-   Some gt function hints are:
+
+    -   groupname_col and rowname_col inside gt()
+
+    -   fmt_data
+
+    -   fmt_number
+
+    -   tab_style
+
+    -   cols_label
+
+    -   tab_spanner
+
+    -   tab_options
+
+```{r}
+#| label: describe-herds
+
+solutions_deno()
+
+
+```
+
+## Conception Risk Tables
+
+Use the Parnell CR function to compare the conception risks between the 2 herds and recreate this table
+
+1.  The **fxn_create_CR_reports** function will work if you just pipe the events_formatted dataframe to it.
+2.  You will need define the grp_vars inside the function
+
+-   the last one should be Rstandard
+-   the table uses lact_group_basic as one of the variables to group the data
+
+3.  for the table use some of the same gt function you used in describing the herd sizes.
+
+-   additional functions to explore are:
+-   summary_rows
+-   cols_nanoplot \_ cols_merge_range
+
+```{r}
+#| label: create-cr_table
+
+solutions_cr()
+
+```
+
+## Mastitis and Conception Risk
+
+Now recreate the table low were a variable was created to determine if a cow had mastitis in her first 60 DIM.
+
+1.  Once you create the new mastitis variable then run the **fxn_dz_status**
+
+    -   The gap should be 14 days
+
+    -   If the cow had mastitis in the first 60 DIM then she will be classified as
+
+        -   "New" if it was her first case
+
+        -   "Repeat" if it was a subsequent case within the gap
+
+        -   "Chronic" if she had at least 1 case after the gap
+
+2.  After running this function
+
+    -   assign cows that had mastitis \>60 DIM as "After"
+
+3.  Merge the data back with events formatted.
+
+    -   I have provided some code below to help you get started.
+
+    -   After the join, cows with no mastitis events should be coded as No Mast
+
+4.  After you merged the mastitis status variable back into events_formatted run the **fxn_create_CR_reports** function again to get the conception risk by mastitis status
+
+5.  Then create a table to show the results
+
+```{r}
+#| label: mast
+
+solutions_mast()
+
+# code to help you
+# run this after you've run fxn_disease_status and before you join back to events_formatted
+
+# your code that runs fxn_dz_status should create this data frame
+# select(id_animal_lact = id_animal, location_event, lact_number,
+#          mast_60, life_times_mast_60,
+#          status_mast_60) |> 
+#   group_by(location_event, id_animal_lact, lact_number, mast_60) |>
+#   # get last mast mast_60 just using life time ignores mast_60
+#   slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |> 
+#   ungroup() |> 
+#   # now will only end up with 1 row/cow
+#   group_by(location_event, id_animal_lact, lact_number) |>
+#   slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
+#   ungroup()
+
+# then join back to events_formatted
+ 
+
+
+
+```
+
+# Extension
+
+For this week extension continue to create standard things you would want to report or incorporate modeling techniques to explore the data
+
+Ideas
+
+-   Try the code with other diseases like mastitis or culture information
