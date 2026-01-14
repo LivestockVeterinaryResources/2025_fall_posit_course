@@ -37,6 +37,7 @@ source("functions/fxn_event_type.R") # c function to categorize events
 source("functions/fxn_disease.R")
 source("functions/fxn_treatment.R")
 
+
 # SETUP-----------------------------
 
 ## Set custom functions----
@@ -92,7 +93,6 @@ fxn_assign_treatment <- fxn_assign_treatment_template
 # still count as the same event - this is under development
 set_outcome_gap_animal <- 1
 set_outcome_gap_lactation <- 1
-
 
 
 
