@@ -52,9 +52,9 @@ animals <- read_parquet(
   '../data/intermediate_files/animals.parquet')
 
 deno_cal <- read_parquet(
-  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
-  filter(deno_type == "lact_basic" & 
-           calendar_time_period_type == "year") |> 
+  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |>
+  filter(deno_type == "lact_basic" &
+           calendar_time_period_type == "year") |>
   select(-c(contains("dop"), day_of_phase_group))
 
   
@@ -73,6 +73,13 @@ date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
 date_min_pull <- date_max_pull - years(1)
 
 # pull solution data
+
+# summary(animals)
+# glimpse(animals)
+# summary(events_formatted)
+# glimpse(events_formatted)
+# unique(events_formatted$event_type)
+# unique(events_formatted$event)
 
 
 ```
