@@ -139,6 +139,158 @@ The steps for this milestone are as follows (code sections for these steps are b
 ```{r}
 #| label: describe-herds
 
+# =========================================================================
+# Initial data summary of deno_cal
+# =========================================================================
+
+library(dplyr)
+
+deno_summary <- deno_cal %>%
+  mutate(
+    year = year(date_time_period_start),
+    `Lactation Group` = dplyr::case_when(
+      `Lactation Group` == "LACT > 0" ~ "Adults",
+      TRUE ~ `Lactation Group`
+    )
+  ) %>%
+  # Grouping order
+  # Lactation Group column name contains a space, so it must be referenced with backticks
+  group_by(
+    year,
+    `Lactation Group`,
+    location_lact_list
+  ) %>%
+  summarise(
+    ct_animal_days_elig   = sum(ct_animal_days_elig, na.rm = TRUE),
+    ct_animals            = sum(ct_animals, na.rm = TRUE),
+    ct_animal_lactations  = sum(ct_animal_lactations, na.rm = TRUE),
+    days_in_time_period   = sum(days_in_time_period, na.rm = TRUE),
+    ct_animal_time_periods = sum(ct_animal_time_periods, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# deno_summary
+
+# =========================================================================
+# Apply gt table formatting of summarized data
+# =========================================================================
+
+# Add first/last row markers
+deno_summary <- deno_summary %>%
+  dplyr::group_by(year) %>%
+  dplyr::mutate(
+    first_row = dplyr::row_number() == 1,
+    last_row  = dplyr::row_number() == dplyr::n()
+  ) %>%
+  dplyr::ungroup()
+
+# Build gt table
+deno_summary_gt <- deno_summary %>%
+  gt(
+    groupname_col = "year",
+    rowname_col   = "Lactation Group"
+  ) %>%
+  
+  # Hide helper columns
+  cols_hide(columns = c(first_row, last_row)) %>%
+  
+  # Label columns
+  cols_label(
+    year                    = "Year",
+    location_lact_list      = "Herd",
+    ct_animal_days_elig     = "Animal Days Eligible",
+    ct_animals              = "Animals",
+    ct_animal_lactations    = "Animal Lactations",
+    days_in_time_period     = "Days in Period",
+    ct_animal_time_periods  = "Animal Time Periods"
+  ) %>%
+  
+  # Add spanners for logical grouping
+  tab_spanner(
+    label = "Counts",
+    columns = c(ct_animals, ct_animal_lactations)
+  ) %>%
+  tab_spanner(
+    label = "Time-Based Metrics",
+    columns = c(ct_animal_days_elig, days_in_time_period, ct_animal_time_periods)
+  ) %>%
+  
+  # Format numbers with commas
+  fmt_number(
+    columns = c(
+      ct_animal_days_elig,
+      ct_animals,
+      ct_animal_lactations,
+      days_in_time_period,
+      ct_animal_time_periods
+    ),
+    decimals = 0
+  ) %>%
+  
+  # Bold column labels
+  tab_style(
+    style = list(cell_text(weight = "bold")),
+    locations = cells_column_labels()
+  ) %>%
+  
+  # Italic year group labels
+  tab_style(
+    style = list(cell_text(style = "italic")),
+    locations = cells_row_groups()
+  ) %>%
+  
+  # Bold the Lactation Group column values
+  tab_style(
+    style = list(cell_text(weight = "bold")),
+    locations = cells_body(columns = "Lactation Group")
+  ) %>%
+  
+  # Shade Herd 2755f rows
+  tab_style(
+    style = list(cell_fill(color = "lightblue")),
+    locations = cells_body(rows = location_lact_list == "Herd 2755f")
+  ) %>%
+  
+  # Bold box around YEAR label row
+  tab_style(
+    style = cell_borders(
+      sides = "all",
+      color = "gray",
+      weight = px(3)
+    ),
+    locations = cells_row_groups()
+  ) %>%
+  
+  # Bold TOP border for first row of each year
+  tab_style(
+    style = cell_borders(
+      sides = "top",
+      color = "gray",
+      weight = px(3)
+    ),
+    locations = cells_body(rows = first_row)
+  ) %>%
+  
+  # Bold BOTTOM border for last row of each year
+  tab_style(
+    style = cell_borders(
+      sides = "bottom",
+      color = "gray",
+      weight = px(3)
+    ),
+    locations = cells_body(rows = last_row)
+  ) %>%
+  
+  # Global table options
+  tab_options(
+    table.font.size = px(14),
+    row_group.as_column = TRUE,
+    data_row.padding = px(6)
+  )
+
+deno_summary_gt
+
+
 
 
 
@@ -162,6 +314,148 @@ Use the Parnell CR function to compare the conception risks between the 2 herds 
 
 ```{r}
 #| label: create-cr_table
+
+## Explore the data
+# unique(events_formatted$location_event)
+# explore column names
+# colnames(events_formatted)
+
+# Add floor_date_month in events_formatted
+events_formatted <- events_formatted %>%
+  mutate(floor_date_month = floor_date(date_event, unit = "month")) %>%
+  mutate(floor_date_year = floor_date(date_event, unit = "year"))
+
+glimpse(events_formatted)
+
+# Pipe events_formatted into the CR report function to create "cr_report"
+cr_report<-events_formatted%>%
+           fxn_create_CR_reports(grp_vars = c('location_event', 'lact_group_basic', 'floor_date_year', 'Rstandard'))
+
+# cr_report
+#   write_csv(cr_report,"excel_excuses.csv")
+
+library(dplyr)
+library(gt)
+library(lubridate)
+library(stringr)
+library(purrr)
+library(scales)
+
+# ---- PREP DATA ----
+cr_clean <- cr_report %>%
+  mutate(
+    year = year(floor_date_year),
+    Lactation = case_when(
+      lact_group_basic == "LACT > 0" ~ "Adults",
+      TRUE ~ lact_group_basic
+    ),
+    `95% CI` = sprintf("%.1f-%.1f", CI_lower, CI_upper)
+  ) %>%
+  arrange(location_event, lact_group_basic, year)
+
+# ---- FUNCTION TO BUILD ONE TABLE ----
+build_cr_table <- function(df) {
+  
+  subtitle_value <- unique(df$location_event)
+  
+  # Create a Unicode bar representation for CR
+  df <- df %>%
+    mutate(
+      CR_scaled = scales::rescale(CR, to = c(1, 20)),
+      CR_bar = strrep("█", round(CR_scaled))
+    )
+  
+  df %>%
+    select(
+      year,
+      Lactation,
+      Event = `Not Bred Event`,
+      Preg = preg,
+      Total = total,
+      SPC,
+      Risk = CR,
+      `95% CI`,
+      CR_bar
+    ) %>%
+    gt(rowname_col = "year") %>%
+    
+    # Title row labels
+    cols_label(
+      Lactation = "Lactation",
+      Event = "Event",
+      Preg = "Preg",
+      Total = "Total",
+      SPC = "SPC",
+      Risk = "Risk",
+      `95% CI` = "95% CI",
+      CR_bar = " "
+    ) %>%
+    
+    # Subtitle row (location_event)
+    tab_header(
+      title = "",
+      subtitle = subtitle_value
+    ) %>%
+    
+    # Conception % spanner
+    tab_spanner(
+      label = "Conception %",
+      columns = c(SPC, Risk, `95% CI`)
+    ) %>%
+    
+    # Formatting
+    fmt_number(
+      columns = c(Event, Preg, Total),
+      decimals = 0,
+      use_seps = TRUE
+    ) %>%
+    fmt_number(
+      columns = c(SPC, Risk),
+      decimals = 1
+    ) %>%
+    
+    # Style the bar column
+    tab_style(
+      style = cell_text(color = "orange", weight = "bold"),
+      locations = cells_body(columns = CR_bar)
+    ) %>%
+    
+    # Alternating row shading
+    tab_options(
+      row.striping.background_color = "#f2f2f2",
+      row.striping.include_table_body = TRUE
+    ) %>%
+    
+    # Summary row
+    summary_rows(
+      groups = NULL,
+      columns = c(Risk),
+      fns = list(`Location Average` = ~ mean(.x, na.rm = TRUE)),
+      formatter = fmt_number,
+      decimals = 1
+    ) %>%
+    
+    # Style summary row
+    tab_style(
+      style = list(
+        cell_fill(color = "#d9e6f2"),
+        cell_text(weight = "bold")
+      ),
+      locations = cells_summary()
+    )
+}
+
+# ---- BUILD FOUR TABLES ----
+tables <- cr_clean %>%
+  group_split(location_event, lact_group_basic) %>%
+  map(build_cr_table)
+
+# Access tables as:
+# tables[[1]]
+# tables[[2]]
+# tables[[3]]
+# tables[[4]]
+
 
 
 
