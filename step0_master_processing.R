@@ -73,8 +73,8 @@ fxn_parse_protocols <- fxn_parse_protocols_default
 
 ### locations  ((turn on only one location function) ----------
 #set_farm_name <-  # if you are not using the default location function this name will never be used
-fxn_assign_location_event <- fxn_assign_location_event_default
-#fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
+#fxn_assign_location_event <- fxn_assign_location_event_default
+fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
 
 # detect_location_lesion options:
 fxn_detect_location_lesion <- fxn_detect_location_lesion_default

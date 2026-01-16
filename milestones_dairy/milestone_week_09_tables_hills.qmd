@@ -1,6 +1,6 @@
 ---
 title: "Week 9 Milestone Tables"
-author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
+author: "<img src='images/ac-logo.png' width='50' /> <br> Animal Clinic LLC"
 date: "`r Sys.Date()`"
 format:
   html:
@@ -112,22 +112,6 @@ date_max_pull
 # Report for `r farm_name[[1]]` and `r farm_name[[2]]`
 
 ## Objective
-
-Run this chuck below. It will open the example report in your browser.
-You should delete this chunk in your final report
-
-```{r}
-#| label: open-html-r
-#| eval: false
-
-# 1. Define the file path
-file_path <- "images/milestone_09.htm"
-
-# 2. Open the browser
-browseURL(file_path)
-
-```
-
 
 The objective of this milestone is start working with multiple herds, create tables, use the denominator data and use external functions. The data and functions you need are loaded in the top chunk. This is in prep for milestone 10 where we will use parameters to run the same report for multiple herds.
 
@@ -459,7 +443,7 @@ For this week extension continue to create standard things you would want to rep
 Ideas
 
 -   Try the code with other diseases like mastitis or culture information
-
+## Metritis and CR
 
 ```{r}
 #| label: metr
@@ -561,11 +545,13 @@ metr_proto_table <- cr_metr_df %>%
 
 metr_proto_table
 ```
+
+
+## Mastitis survival table
+
 ```{r}
 #| label: mast survivability
 
-# 1. CALCULATE SURVIVAL FROM CALVING (ECONOMIC IMPACT)
-# ---------------------------------------------------------
 mast_survival_econ <- events_mast %>%
   # Create the lactation groups first
   mutate(lact_group = case_when(
@@ -584,8 +570,6 @@ mast_survival_econ <- events_mast %>%
   slice(1) %>%
   ungroup()
 
-# 2. SUMMARIZE BY STATUS AND LACT_GROUP
-# ---------------------------------------------------------
 mast_econ_summary <- mast_survival_econ %>%
   filter(year(date_event) >= 2023) %>%
   group_by(location_event, lact_group, mast_status) %>% # Added lact_group here
@@ -596,8 +580,6 @@ mast_econ_summary <- mast_survival_econ %>%
     .groups = "drop"
   )
 
-# 3. GENERATE THE UPDATED GT TABLE
-# ---------------------------------------------------------
 mast_econ_table_lact <- mast_econ_summary %>%
   # We group by location and lactation group
   gt(groupname_col = c("location_event", "lact_group")) %>%
@@ -606,11 +588,9 @@ mast_econ_table_lact <- mast_econ_summary %>%
     subtitle = "Days in Milk (DIM) from Calving to Exit or Last Event"
   ) %>%
   
-  # Format Numbers
   fmt_number(columns = Avg_Lactation_Length, decimals = 0) %>%
   fmt_number(columns = Culling_Rate, decimals = 1, pattern = "{x}%") %>%
-  
-  # Column Labels
+
   cols_label(
     mast_status = "Mastitis Category",
     Cow_Count = "Total Cows",
@@ -618,7 +598,6 @@ mast_econ_table_lact <- mast_econ_summary %>%
     Avg_Lactation_Length = "Avg Days in Herd"
   ) %>%
   
-  # FIXED COLORING: Expanded domain to 100 to fix the grey color for MV Dairy
   data_color(
     columns = Culling_Rate,
     direction = "column",
@@ -626,7 +605,6 @@ mast_econ_table_lact <- mast_econ_summary %>%
     domain = c(0, 100) 
   ) %>%
   
-  # Nanoplots
   cols_nanoplot(
     columns = Avg_Lactation_Length,
     plot_type = "bar",
@@ -634,7 +612,6 @@ mast_econ_table_lact <- mast_econ_summary %>%
     options = nanoplot_options(data_bar_fill = "darkgreen")
   ) %>%
   
-  # Aesthetics
   tab_options(
     row_group.background.color = "#f4f4f4",
     row_group.font.weight = "bold",
@@ -642,9 +619,10 @@ mast_econ_table_lact <- mast_econ_summary %>%
   ) %>%
   cols_align(align = "center", columns = everything())
 
-# Display the table
 mast_econ_table_lact
 ```
+
+## Mastitis culling rate heatmap
 
 ```{r}
 #|label: heatmap mast
@@ -683,5 +661,60 @@ mast_heatmap <- ggplot(mast_econ_summary, aes(x = lact_group, y = mast_status, f
 # Display the heatmap
 print(mast_heatmap)
 
+```
+
+## Kaplan-Meier
+
+```{r}
+
+
+km_data <- mast_survival_econ %>%
+  filter(year(date_event) >= 2023) %>%
+  mutate(
+    event_code = is_exit, 
+    time = total_days_in_lact,
+    location_event = as.factor(location_event)
+  )
+
+# 1. Rebuild the KM Data to ensure it exists and is clean
+km_data <- mast_survival_econ %>%
+  filter(year(date_event) >= 2023) %>%
+  mutate(
+    event_code = is_exit, 
+    time = total_days_in_lact,
+    location_event = as.character(location_event) # Keep as character for subsetting
+  )
+
+# 2. Create a function to generate individual plots
+# This avoids the facet.by error entirely
+make_km_plot <- function(dairy_name) {
+  # Subset data for the specific dairy
+  dairy_sub <- km_data %>% filter(location_event == dairy_name)
+  
+  # Fit the model for just this dairy
+  fit <- survfit(Surv(time, event_code) ~ mast_status, data = dairy_sub)
+  
+  # Generate the plot
+  ggsurvplot(
+    fit,
+    data = dairy_sub,
+    conf.int = TRUE,
+    pval = TRUE,
+    risk.table = TRUE,
+    palette = "jco",
+    title = paste("Survivability:", dairy_name),
+    legend.labs = c("After", "Chronic", "New", "No Mast", "Repeat"),
+    xlab = "Days in Milk (DIM)",
+    ylab = "Survival Probability"
+  )
+}
+
+# 3. Generate the plots for each dairy
+plot_mmw <- make_km_plot("MMW Dairy")
+plot_mv  <- make_km_plot("MV Dairy")
+
+# 4. Print them one after another
+print(plot_mmw)
+print(plot_mv)
 ```
 
