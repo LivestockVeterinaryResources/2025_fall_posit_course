@@ -30,6 +30,7 @@ pacman::p_load(
   tidyverse,
   dtplyr,
   gt,
+  gtExtras,
   arrow,
   rmarkdown,
   lubridate,
@@ -46,7 +47,8 @@ pacman::p_load(
   )
 
 events_formatted <- read_parquet(
-  '../data/intermediate_files/events_formatted.parquet') 
+  '../data/intermediate_files/events_formatted.parquet') |> 
+  mutate(location_event = ifelse(location_event == "Herd MMW10", "MMW Dairy", "MV Dairy"))
 
 # events_formatted <- events_formatted |>
 #   dplyr::mutate(
@@ -159,78 +161,62 @@ The steps for this milestone are as follows (code sections for these steps are b
     -   tab_options
 
 ```{r}
-#| label: describe-herds
-
-colnames(deno_cal)
 
 deno_5y_tbl <- deno_cal %>%
   filter(calendar_time_period_type == "year") %>%
-  # optional: keep only this flavor if multiple deno_type exist
   filter(deno_type == "lact_basic") %>%
   mutate(
-    year = year(date_time_period_end),
-    elig_cows_per_day = ct_animal_days_elig / days_in_time_period
+    Year = year(date_time_period_end),
+    Lactation = ifelse(`Lactation Group` == "LACT > 0", "Adult Cows", "Heifer")
   ) %>%
-  # last 5 years present in your file (based on year)
-  filter(year >= max(year, na.rm = TRUE) - 4) %>%
+  filter(Year >= max(Year, na.rm = TRUE) - 4) %>%
   select(
-    location_lact_list, `Lactation Group`, year,
-    ct_animals, elig_cows_per_day
+    location_event = location_lact_list,
+    Year,
+    Lactation,
+    `Days at risk` = ct_animal_days_elig, 
+    `DAR Animals`  = ct_animals,      
+    Lactations     = ct_animal_lactations,
+    Animals        = ct_animals
   ) %>%
-  pivot_wider(
-    names_from  = `Lactation Group`,
-    values_from = c(ct_animals, elig_cows_per_day),
-    names_glue  = "{.value}__{`Lactation Group`}"
+  arrange(location_event, desc(Year), Lactation)
+
+gt_herd_desc <- deno_5y_tbl %>%
+  gt(
+    groupname_col = "location_event",
+    rowname_col = "Year"
   ) %>%
-  arrange(location_lact_list, year)
-
-deno_5y_tbl_tot <- deno_5y_tbl %>%
-  mutate(
-    ct_animals__Total =
-      coalesce(`ct_animals__Heifer`, 0) + coalesce(`ct_animals__LACT > 0`, 0),
-
-    elig_cows_per_day__Total =
-      coalesce(`elig_cows_per_day__Heifer`, 0) + 
-      coalesce(`elig_cows_per_day__LACT > 0`, 0)
-  )
-
-gt_herd_desc_tot <- deno_5y_tbl_tot %>%
-  gt(groupname_col = "location_lact_list", rowname_col = "year") %>%
-  
-  cols_label(
-    `ct_animals__Total`          = "Animals",
-    `elig_cows_per_day__Total`  = "Eligible/day",
-    `ct_animals__Heifer`        = "Animals",
-    `elig_cows_per_day__Heifer`= "Eligible/day",
-    `ct_animals__LACT > 0`      = "Animals",
-    `elig_cows_per_day__LACT > 0` = "Eligible/day"
+  tab_spanner(
+    label = "Count of",
+    columns = c(`Days at risk`, `DAR Animals`, Lactations, Animals)
   ) %>%
-  
-  tab_spanner(label = "Total",
-              columns = c(`ct_animals__Total`, `elig_cows_per_day__Total`)) %>%
-  tab_spanner(label = "Heifer",
-              columns = c(`ct_animals__Heifer`, `elig_cows_per_day__Heifer`)) %>%
-  tab_spanner(label = "LACT > 0",
-              columns = c(`ct_animals__LACT > 0`, `elig_cows_per_day__LACT > 0`)) %>%
-  
+  tab_spanner(
+    label = "Group",
+    columns = c(Lactation)
+  ) %>%
   fmt_number(
-    columns = -year,  
-    decimals = 0
+    columns = c(`Days at risk`, `DAR Animals`, Lactations, Animals),
+    decimals = 0,
+    use_seps = TRUE
   ) %>%
-  
-  tab_style(style = cell_text(weight = "bold"),
-            locations = cells_column_labels(everything())) %>%
-  
-  tab_style(style = cell_text(weight = "bold"),
-            locations = cells_row_groups()) %>%
-  
+  fmt_number(
+    rows = everything(),
+    columns = stub(), 
+    decimals = 0,
+    use_seps = FALSE
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = list(cells_column_labels(), cells_row_groups())
+  ) %>%
   tab_options(
-    table.font.size = px(12),
-    data_row.padding = px(4),
-    row_group.padding = px(6)
-  )
+    row_group.background.color = "#eeeeee",
+    table.width = pct(100),
+    table.font.size = px(14)
+  ) %>%
+  cols_align(align = "center", columns = everything())
 
-gt_herd_desc_tot
+gt_herd_desc
 
 ```
 
@@ -253,7 +239,70 @@ Use the Parnell CR function to compare the conception risks between the 2 herds 
 ```{r}
 #| label: create-cr_table
 
+events_formatted <- events_formatted |> 
+  filter(date_event <= date_max_pull) 
 
+cr_df <- events_formatted %>%
+  mutate(year = year(date_event)) %>%
+  fxn_create_CR_reports(
+    grp_vars = c("location_event", "year", "lact_group_basic", "Rstandard")
+  )
+
+cr_table <- cr_df %>%
+  mutate(
+    Risk_Num = CR * 100,
+    Plot_Data = CR * 100
+  ) %>% 
+  select(
+    location_event, 
+    Year = year, 
+    Lactation = lact_group_basic, 
+    `Not Bred Event`, 
+    Preg = preg, 
+    Total = total, 
+    SPC, 
+    Risk = Risk_Num, 
+    CI_lower, 
+    CI_upper,
+    Plot_Data 
+  ) %>%
+  gt(groupname_col = "location_event") %>%
+  
+  fmt_number(columns = c(`Not Bred Event`, Preg, Total), decimals = 0, use_seps = TRUE) %>%
+  fmt_number(columns = c(SPC, Risk), decimals = 1) %>%
+  
+  cols_merge_range(col_begin = CI_lower, col_end = CI_upper, sep = "–") %>%
+  cols_nanoplot(
+    columns = Plot_Data,
+    plot_type = "bar",
+    new_col_name = "Plot_Col",
+    options = nanoplot_options(
+      data_bar_fill = "orange",
+      data_bar_stroke_color = "black",
+      data_bar_stroke_width = 1
+    )
+  ) %>%
+  cols_label(CI_lower = "95% CI", Plot_Col = "Plot") %>%
+  
+  summary_rows(
+    groups = everything(), # Force summary on all groups
+    columns = Risk,
+    fns = list("Location Average" = ~mean(., na.rm = TRUE)),
+    fmt = list(~fmt_number(., decimals = 1)),
+    missing_text = "—" 
+  ) %>%
+  
+  tab_header(title = "Conception Risk Report") %>%
+  tab_spanner(label = "Conception (%)", columns = c(Risk, CI_lower, Plot_Col)) %>%
+  tab_options(
+    summary_row.background.color = "lightblue",
+    row_group.font.weight = "bold",
+    column_labels.font.weight = "bold",
+    table.width = pct(100)
+  ) %>%
+  cols_align(align = "center", columns = everything())
+
+cr_table
 
 ```
 
@@ -290,28 +339,117 @@ Now recreate the table low were a variable was created to determine if a cow had
 ```{r}
 #| label: mast
 
+events_prep <- events_formatted %>%
+  mutate(mast_60 = ifelse(event == "MAST" & dim_event <= 60, 1, 0)) %>%
+  select(-any_of("id_animal")) 
 
-# code to help you
-# run this after you've run fxn_disease_status and before you join back to events_formatted
+mastitis_status <- fxn_dz_status(
+    data = events_prep,
+    farm_col = location_event,
+    id_col = id_animal_lact, 
+    disease_cols = "mast_60",
+    prefix = "mast_60",
+    gap = 14
+  )
 
-# your code that runs fxn_dz_status should create this data frame
-select(id_animal_lact = id_animal, location_event, lact_number,
-         mast_60, life_times_mast_60,
-         status_mast_60) |>
-  group_by(location_event, id_animal_lact, lact_number, mast_60) |>
-  # get last mast mast_60 just using life time ignores mast_60
-  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |>
-  ungroup() |>
-  # now will only end up with 1 row/cow
-  group_by(location_event, id_animal_lact, lact_number) |>
-  slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
-  ungroup()
+mastitis_refined <- mastitis_status %>%
+  rename(
+    life_times_mast_60 = life_times_mast_60.x,
+  ) %>%
+  filter(mast_60 == 1) %>% 
+  group_by(location_event, id_animal, lact_number) %>%
+  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(location_event, id_animal_lact = id_animal, lact_number, early_status = status_mast_60)
 
-# then join back to events_formatted
- 
+events_mast <- events_formatted %>%
+  left_join(mastitis_refined, by = c("location_event", "id_animal_lact", "lact_number")) %>%
+  mutate(
+    has_late_mast = any(event == "MAST" & dim_event > 60), .by = c(location_event, id_animal_lact, lact_number)
+  ) %>%
+  mutate(
+    mast_status = case_when(
+      !is.na(early_status) ~ early_status, # "New", "Repeat", "Chronic" (from function)
+      has_late_mast == TRUE ~ "After",     # Mastitis > 60 DIM
+      TRUE ~ "No Mast"                     # No mastitis events at all
+    )
+  )
 
+cr_mast_df <- events_mast %>%
+  mutate(
+    year = year(date_event),
+  ) %>%
+  filter(year >= 2023) %>% 
+  fxn_create_CR_reports(
+    grp_vars = c("location_event", "year", "mast_status", "Rstandard")
+  )
 
+mast_cr_table <- cr_mast_df %>%
+  mutate(
+    Plot_Data = CR * 100, 
+    Risk_Num = CR * 100
+  ) %>%
+  select(
+    location_event,
+    Year = year,
+    `Mast <= 60 DIM` = mast_status,
+    Preg = preg,
+    Total = total,
+    Risk = Risk_Num,
+    CI_lower,
+    CI_upper,
+    Plot_Data
+  ) %>%
+  gt(groupname_col = "location_event") %>%
+  
+  fmt_number(columns = c(Preg, Total), decimals = 0, use_seps = TRUE) %>%
+  fmt_number(columns = Risk, decimals = 1) %>%
+  
+  cols_merge_range(col_begin = CI_lower, col_end = CI_upper, sep = "–") %>%
+  
+  cols_nanoplot(
+    columns = Plot_Data,
+    plot_type = "bar",
+    new_col_name = "Plot_Col",
+    options = nanoplot_options(
+      data_bar_fill = "orange",
+      data_bar_stroke_color = "black",
+      data_bar_stroke_width = 1
+    )
+  ) %>%
 
+  cols_label(
+    CI_lower = "95% CI", 
+    Plot_Col = "Plot",
+    Risk = "Risk"
+  ) %>%
+  tab_spanner(
+    label = "Conception (%)", 
+    columns = c(Risk, CI_lower, Plot_Col)
+  ) %>%
+  
+  tab_source_note(source_note = md(
+    "**After** = Mastitis after 60 days in milk<br>
+     **New** = First case<br>
+     **Repeat** = Multiple cases in gap<br>
+     **Chronic** = At least 1 case after gap<br>
+     **No Mast** = No mastitis cases in lactation"
+  )) %>%
+  
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = list(cells_column_labels(), cells_row_groups())
+  ) %>%
+  
+  tab_options(
+    row_group.background.color = "#eeeeee", # Grey bars for Herd names
+    table.width = pct(100),
+    table.font.size = px(14),
+    data_row.padding = px(5)
+  ) %>%
+  cols_align(align = "center", columns = everything())
+
+mast_cr_table
 ```
 
 # Extension
@@ -321,3 +459,229 @@ For this week extension continue to create standard things you would want to rep
 Ideas
 
 -   Try the code with other diseases like mastitis or culture information
+
+
+```{r}
+#| label: metr
+events_metr_prep <- events_formatted %>%
+  filter(event == "METR") %>%
+  mutate(metr_60 = ifelse(dim_event <= 60, 1, 0)) |> 
+  select(-any_of("id_animal"))
+  
+metritis_status <- fxn_dz_status(
+    data = events_metr_prep,
+    farm_col = location_event,
+    id_col = id_animal_lact, 
+    disease_cols = "metr_60",
+    prefix = "metr_60",
+    gap = 14
+  )
+
+metritis_refined <- metritis_status %>%
+  rename(life_times_metr_60 = life_times_metr_60.x) %>%
+  # Only look at the early window
+  filter(metr_60 == 1) %>%
+  group_by(location_event, id_animal, lact_number) %>%
+  # Use slice_min to get the protocol from the VERY FIRST metritis event
+  slice_min(order_by = life_times_metr_60, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  select(
+    location_event, 
+    id_animal_lact = id_animal, 
+    lact_number, 
+    early_protocol = protocols_letters1 
+  )
+
+events_metr_final <- events_formatted %>%
+  left_join(metritis_refined, by = c("location_event", "id_animal_lact", "lact_number")) %>%
+  mutate(
+    # Check for metritis > 60 DIM for cows not in the early_protocol group
+    has_late_metr = any(event == "METR" & dim_event > 60), .by = c(location_event, id_animal_lact, lact_number)
+  ) %>%
+  mutate(
+    # Create the final variable for the table
+    metr_protocol_grp = case_when(
+      !is.na(early_protocol) ~ early_protocol, # The letters (A, B, etc.)
+      has_late_metr == TRUE ~ "After",
+      TRUE ~ "No Metritis"
+    )
+  )
+
+cr_metr_df <- events_metr_final %>%
+  mutate(year = year(date_event)) %>%
+  filter(year >= 2023) %>% 
+  fxn_create_CR_reports(
+    # IMPORTANT: Use metr_protocol_grp here, NOT Rstandard
+    grp_vars = c("location_event", "year", "metr_protocol_grp", "Rstandard")
+  )
+
+metr_proto_table <- cr_metr_df %>%
+  mutate(Plot_Data = CR * 100, Risk_Num = CR * 100) %>%
+  select(
+    location_event,
+    Year = year,
+    `Metritis Protocol` = metr_protocol_grp,
+    Preg = preg,
+    Total = total,
+    Risk = Risk_Num,
+    CI_lower,
+    CI_upper,
+    Plot_Data
+  ) %>%
+  gt(groupname_col = "location_event") %>%
+  
+  # Formatting
+  fmt_number(columns = c(Preg, Total), decimals = 0, use_seps = TRUE) %>%
+  fmt_number(columns = Risk, decimals = 1) %>%
+  cols_merge_range(col_begin = CI_lower, col_end = CI_upper, sep = "–") %>%
+  
+  # Nanoplots (using a different color to distinguish from Mastitis)
+  cols_nanoplot(
+    columns = Plot_Data,
+    plot_type = "bar",
+    new_col_name = "Plot_Col",
+    options = nanoplot_options(
+      data_bar_fill = "darkorchid",
+      data_bar_stroke_color = "black",
+      data_bar_stroke_width = 1
+    )
+  ) %>%
+  
+  # Labels and Spanners
+  cols_label(CI_lower = "95% CI", Plot_Col = "Plot") %>%
+  tab_spanner(label = "Conception (%)", columns = c(Risk, CI_lower, Plot_Col)) %>%
+  
+  # Aesthetics
+  tab_options(
+    row_group.background.color = "#eeeeee",
+    row_group.font.weight = "bold",
+    table.width = pct(100)
+  ) %>%
+  cols_align(align = "center", columns = everything())
+
+metr_proto_table
+```
+```{r}
+#| label: mast survivability
+
+# 1. CALCULATE SURVIVAL FROM CALVING (ECONOMIC IMPACT)
+# ---------------------------------------------------------
+mast_survival_econ <- events_mast %>%
+  # Create the lactation groups first
+  mutate(lact_group = case_when(
+    lact_number == 1 ~ "1st Lact",
+    lact_number == 2 ~ "2nd Lact",
+    lact_number >= 3 ~ "3+ Lact",
+    TRUE ~ "Other"
+  )) %>%
+  group_by(location_event, id_animal_lact, lact_number) %>%
+  mutate(
+    calving_date = min(date_event),
+    is_exit = ifelse(any(event %in% c("SOLD", "DIED")), 1, 0),
+    exit_date = max(date_event),
+    total_days_in_lact = as.numeric(exit_date - calving_date)
+  ) %>%
+  slice(1) %>%
+  ungroup()
+
+# 2. SUMMARIZE BY STATUS AND LACT_GROUP
+# ---------------------------------------------------------
+mast_econ_summary <- mast_survival_econ %>%
+  filter(year(date_event) >= 2023) %>%
+  group_by(location_event, lact_group, mast_status) %>% # Added lact_group here
+  summarise(
+    Cow_Count = n(),
+    Culling_Rate = mean(is_exit) * 100,
+    Avg_Lactation_Length = mean(total_days_in_lact, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 3. GENERATE THE UPDATED GT TABLE
+# ---------------------------------------------------------
+mast_econ_table_lact <- mast_econ_summary %>%
+  # We group by location and lactation group
+  gt(groupname_col = c("location_event", "lact_group")) %>%
+  tab_header(
+    title = "Economic Impact: Mastitis Status by Lactation",
+    subtitle = "Days in Milk (DIM) from Calving to Exit or Last Event"
+  ) %>%
+  
+  # Format Numbers
+  fmt_number(columns = Avg_Lactation_Length, decimals = 0) %>%
+  fmt_number(columns = Culling_Rate, decimals = 1, pattern = "{x}%") %>%
+  
+  # Column Labels
+  cols_label(
+    mast_status = "Mastitis Category",
+    Cow_Count = "Total Cows",
+    Culling_Rate = "Culling Rate (%)",
+    Avg_Lactation_Length = "Avg Days in Herd"
+  ) %>%
+  
+  # FIXED COLORING: Expanded domain to 100 to fix the grey color for MV Dairy
+  data_color(
+    columns = Culling_Rate,
+    direction = "column",
+    palette = c("white", "orange", "red"),
+    domain = c(0, 100) 
+  ) %>%
+  
+  # Nanoplots
+  cols_nanoplot(
+    columns = Avg_Lactation_Length,
+    plot_type = "bar",
+    new_col_name = "DIM_Plot",
+    options = nanoplot_options(data_bar_fill = "darkgreen")
+  ) %>%
+  
+  # Aesthetics
+  tab_options(
+    row_group.background.color = "#f4f4f4",
+    row_group.font.weight = "bold",
+    table.width = pct(100)
+  ) %>%
+  cols_align(align = "center", columns = everything())
+
+# Display the table
+mast_econ_table_lact
+```
+
+```{r}
+#|label: heatmap mast
+
+mast_heatmap <- ggplot(mast_econ_summary, aes(x = lact_group, y = mast_status, fill = Culling_Rate)) +
+  geom_tile(color = "white", linewidth = 0.5) + 
+  geom_text(aes(label = sprintf("%.1f%%", Culling_Rate)), 
+            color = "black", size = 3.5, fontface = "bold") + 
+  facet_wrap(~location_event, ncol = 1) + 
+  
+  scale_fill_gradientn(
+    colors = c("white", "orange", "red"),
+    values = scales::rescale(c(0, 30, 100)), 
+    name = "Culling Rate (%)",
+    limits = c(0, 100)
+  ) +
+  
+  labs(
+    title = "Mastitis Economic Risk Heat Map",
+    subtitle = "Culling Rate (%) by Lactation Group and Mastitis Status",
+    x = "Lactation Group",
+    y = "Mastitis Status"
+  ) +
+  
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text = element_text(face = "bold", size = 10),
+    strip.background = element_rect(fill = "#eeeeee"), # Grey background for Dairy labels
+    strip.text = element_text(face = "bold", size = 12),
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 12),
+    legend.position = "right"
+  )
+
+# Display the heatmap
+print(mast_heatmap)
+
+```
+
