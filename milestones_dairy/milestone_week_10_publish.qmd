@@ -1,6 +1,6 @@
 ---
 title: "Week 10 Milestone Params"
-subtitle: "r params$herd"
+subtitle: "`r params$year` Report for `r params$herd`" 
 author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
 date: "`r Sys.Date()`"
 format:
@@ -19,6 +19,7 @@ execute:
 embed-resources: true
 params:
   herd: "Herd 2108e"
+  year: 2025
   
 ---
 
@@ -47,17 +48,24 @@ pacman::p_load(
   zoo
   )
 
+year_filter <- make_date(params$year, 1, 1)
+
 events_formatted <- read_parquet(
-  '../data/intermediate_files/events_formatted.parquet') 
+  '../data/intermediate_files/events_formatted.parquet')|> 
+  filter(location_event %in% params$herd) |> 
+  filter(date_event >= year_filter)
 
 animals <- read_parquet(
-  '../data/intermediate_files/animals.parquet')
+  '../data/intermediate_files/animals.parquet') |> 
+  filter(location_list %in% params$herd) 
 
 deno_cal <- read_parquet(
   '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
   filter(deno_type == "lact_basic" & 
            calendar_time_period_type == "year") |> 
-  select(-c(contains("dop"), day_of_phase_group))
+  select(-c(contains("dop"), day_of_phase_group)) |> 
+  filter(location_lact_list %in% params$herd) |> 
+  filter(date_time_period_start >= year_filter)
 
   
 # load GC's functions
@@ -336,7 +344,7 @@ mast_table
 
 ```
 
-# Report for `r herd``
+# Report for `r herd`
 
 ## Objective
 
