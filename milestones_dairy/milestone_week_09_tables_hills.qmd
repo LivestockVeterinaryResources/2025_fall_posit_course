@@ -48,8 +48,26 @@ pacman::p_load(
 events_formatted <- read_parquet(
   '../data/intermediate_files/events_formatted.parquet') 
 
+# events_formatted <- events_formatted |>
+#   dplyr::mutate(
+#     location_event = ifelse(
+#       source_file_path == "data/event_files/MV Dairy 1.16.26.csv",
+#       "MV Dairy",
+#       "MMW Dairy"
+#     )
+#   )
+
 animals <- read_parquet(
   '../data/intermediate_files/animals.parquet')
+
+# animals <- animals |>
+#   dplyr::mutate(
+#     location_list = ifelse(
+#       grepl("MV Dairy", id_animal, ignore.case = TRUE),
+#       "MV Dairy",
+#       "MMW Dairy"
+#     )
+#   )
 
 deno_cal <- read_parquet(
   '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
@@ -57,6 +75,14 @@ deno_cal <- read_parquet(
            calendar_time_period_type == "year") |> 
   select(-c(contains("dop"), day_of_phase_group))
 
+deno_cal <- deno_cal |> 
+  mutate(
+    location_lact_list = ifelse(
+      grepl("MV", location_lact_list, ignore.case = TRUE),
+      "MV Dairy",
+      "MMW Dairy"
+    )
+  )
   
 # load GC's functions
 source('../functions/fxn_load_os_fxns.R')
@@ -69,11 +95,14 @@ source(cr_url)
 # create variables for inline code
 farm_name <- unique(events_formatted$location_event)
 
-date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
+#date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
+date_max_pull <- events_formatted %>%
+  filter(location_event == "MMW Dairy") %>%
+  summarise(date_max_pull = max(date_event, na.rm = TRUE)) %>%
+  pull(date_max_pull)
 date_min_pull <- date_max_pull - years(1)
 
-# pull solution data
-
+date_max_pull
 
 ```
 
