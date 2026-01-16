@@ -379,6 +379,9 @@ The steps for this milestone are as follows (code sections for these steps are b
 
     -   tab_options
 
+::: {.panel-tabset}
+# Herd Denominator Table
+
 ```{r}
 #| label: describe-herds
 
