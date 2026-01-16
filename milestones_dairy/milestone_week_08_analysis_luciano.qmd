@@ -73,21 +73,6 @@ source('../functions/fxn_milestone8_solution.R')
 A few notes:  1) The logic is to create culling variables can be complex depending on the questions I have tried to be explicit in how I created the data set you should be using. 2)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
 ```
 
-Run this chuck below. It will open the example report in your browser.
-You should delete this chunk in your final report
-
-```{r}
-#| label: open-html-r
-#| eval: false
-
-# 1. Define the file path
-file_path <- "images/milestone_8.htm"
-
-# 2. Open the browser
-browseURL(file_path)
-
-```
-
 # Report for r farm_name
 
 -   This report shows data from the past year from
@@ -150,10 +135,7 @@ with the events_formatted and animals table.
 #| label: your code
 #| echo: TRUE
 
-# put your code here to create the required data frame.
-# name it solution_data
-
-# you will need to use these functions and vectors with these arguments at some point in your code.
+# STEP 0 - you will need to use these functions and vectors with these arguments at some point in your code.
 
 all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury", 
                              "cork", "other", "hemorrhage",
@@ -162,6 +144,101 @@ all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury",
 
 diseases <- c("inf", "noninf", "lesion")
 
+# 1.  Filter the events_formatted table to only include LAME and TRIM
+#     events
+step1 <- events_formatted |> 
+  filter(event %in% c("LAME", "TRIM"))
+
+# 2.  Then create new variables for lesions using the
+#     **fxn_code_lesions()** function that you used from Github last
+#     milestone
+#     -   This function is automatically loaded for you already.
+#     -   use (protocol_var = protocols_letters1, remark_var =
+#         remark_letters1) inside the function
+
+step2 <- step1 |> 
+  fxn_code_lesions(protocol_var = protocols_letters1, remark_var = 
+                     remark_letters1)
+# 3.  Address the abscess warning in the function by coding anything with
+#     ab in remark_letters1 or protocol_letter1 as noninf and remove them
+#     from other.
+step3 <- step2 |> 
+  mutate(
+    is_abscess = str_detect(protocols_letters1, "ab") | str_detect(remark_letters1, "ab"),
+    noninf = ifelse(is_abscess, 1, noninf),
+    other  = ifelse(is_abscess, 0, other) 
+  ) |> 
+  select(-is_abscess)
+
+# 4.  Run the following 3 functions to process the lesion data further and
+#     create variables you will need to use later on.
+#     -   **fxn_collapse_lesions**(lesions = all_lesions)
+#     -   **fxn_trim_vars**(location_event, id_animal, date_var =
+#         date_event, trimonly_var = trimonly)
+#     -   **fxn_dz_status**(disease_cols = diseases, event_filter =
+#         trimonly == 0, gap = 1)
+#         -   ***NOTE**: All the other functions are specific for lameness
+#             this one is **NOT** and can be used for other diseases!*
+step4 <- step3 |> 
+  fxn_collapse_lesions(lesions = all_lesions) |> 
+  fxn_trim_vars(
+    location_event,
+    id_animal,
+    date_var = date_event,
+    trimonly_var = trimonly
+  ) |> 
+  fxn_dz_status(
+    disease_cols = diseases,
+    event_filter = trimonly == 0, gap =1
+  )
+
+# 5.  Then join this data table with the animals table to get the
+#     date_left, date_sold and date_died variables
+step5 <- step4 |> 
+  left_join(animals, by = "id_animal")
+
+# 5.A. Determine  the last event entry in the whole dataset)
+last_data_entry <- as.Date(max(animals$date_event, na.rm = TRUE))
+```
+
+
+```{r}
+g_names<-colnames(solution)
+# 6.  Then create new culling variables as described below
+solution_data <- step5 |> 
+  group_by(id_animal) |> 
+  mutate(
+#     -   **date_censor :** this is the last date the cow would have been
+#         eligible to be culled and should be the last date and event was
+#         entered in the data set
+    date_censor = last_data_entry,
+
+#     -   **days_to_cull:** days from event(trimming) to culling
+# creating **final_cull_date ** to use on the time-to-event calculation
+    final_cull_date = coalesce(date_sold, date_died, date_left),
+    days_to_cull = as.numeric(final_cull_date - date_event),
+#     -   **culled_ever:** 1 if the cow was culled, 0 if not culled
+    culled_ever = ifelse(!is.na(final_cull_date), 1, 0),
+
+#     -   **days_censor_cull:** days from event to culling or censor_date
+#         if not culled
+    days_censor_cull = ifelse(
+      culled_ever == 1, 
+      days_to_cull, 
+      as.numeric(date_censor - date_event)
+    ),
+
+#     -   **culled_last_trim:** 1 if the cow was culled after her trim
+#         without being trimmed again.
+    culled_last_trim = ifelse(culled_ever == 1 & date_event == max(date_event), 1, 0),
+
+#     -   **culled_30**: 1 if the cow was culled \<=30 days after her trim
+#         0 if not
+    culled_30 = ifelse(culled_ever == 1 & days_to_cull <= 30, 1, 0)
+) |> 
+  ungroup() |> 
+
+select(colnames(solution))
 # solution_data <- 
 
 # fxn_collapse_lesions(lesions = all_lesions) |> 
@@ -171,14 +248,14 @@ diseases <- c("inf", "noninf", "lesion")
 #   fxn_dz_status(disease_cols = diseases,
 #                 event_filter = trimonly == 0)
 
-
+# colnames(solution)
 ```
 
 ```{r}
 #| label: create-solution-data
 
-
 waldo::compare(solution_data, solution)
+
 
 
 
@@ -204,7 +281,31 @@ Then on the solution_data table.
 #| label: visualize-culling
 #| echo: true
 
+ggplot(solution_data, aes(x =days_censor_cull , y = lesion,  fill = lesion)) +
+  geom_violin( alpha = 0.6) +
+  geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+  labs(
+    title = "Distribution of Time to Culling (Last 12 Months)",
+    subtitle = "For lactating cows with lesions at their last trim",
+    y = "Lesion Type",
+    x = "Days from Trim to Cull (or Censor)",
+    fill = "Lesion Type"
+  ) +
+  theme_minimal()
+
 # put your visualization category code here
+
+# ggplot(log_data, aes(x =days_to_censor_cull , y = lesion,  fill = lesion)) +
+#   geom_violin( alpha = 0.6) +
+#   geom_boxplot(width = 0.1, fill = "white", outlier.shape = NA) +
+#   labs(
+#     title = "Distribution of Time to Culling (Last 12 Months)",
+#     subtitle = "For lactating cows with lesions at their last trim",
+#     y = "Lesion Type",
+#     x = "Days from Trim to Cull (or Censor)",
+#     fill = "Lesion Type"
+#   ) +
+#   theme_minimal()
 
 
 
@@ -221,8 +322,26 @@ Then on the solution_data table.
 #| label: fig-example_heat
 #| echo: true
 
+heatmap_data_count <- log_data %>%
+  group_by(lesion, lact_group) %>%
+  summarise(count = n(), .groups = 'drop')
 
 
+ggplot(heatmap_data_count, aes(x = lesion, y = factor(lact_group), fill = count)) +
+  geom_tile(color = "white") + # White borders define the grid
+  
+  # Optional: Add text numbers inside the tiles
+  geom_text(aes(label = count), color = "white", size = 3) +
+  
+  scale_fill_viridis_c() + # A distinct, colorblind-friendly palette
+  labs(
+    title = "Heatmap of Case Frequency",
+    subtitle = "Number of cows by Parity and Lesion Type",
+    x = "Lesion Type",
+    y = "Parity",
+    fill = "Count"
+  ) +
+  theme_minimal()
 
 
 
@@ -250,7 +369,7 @@ risks.
 #| label: fig-example_logistic
 #| echo: true
 
-log_model <- # your model code goes here
+log_model <- glm(culled_30 ~ noninf, data = solution_data, family = "binomial")
 
 log_model_results <- tidy(log_model, exponentiate = TRUE,
                       conf.int = TRUE) |> 
@@ -348,6 +467,8 @@ surv_plot
 #| echo: true
 
 # times are adjustable
+
+# install.packages(c("gtsummary", "broom", "broom.helpers", "cardx"))
 
 surv_table <- km_fit |>
   tbl_survfit(

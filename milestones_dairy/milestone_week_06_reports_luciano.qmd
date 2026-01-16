@@ -1,6 +1,8 @@
 ---
-format:
-  html:
+title: "Week 6 milestone"
+author: "Luciano Caixeta"
+  format:
+  html
     toc: true
     embed-resources: true
     theme: cosmo
@@ -54,19 +56,6 @@ A few notes:
 2) to use an image put it in the image folder (the one in the report is called 
   logo_no_background.png)
 3)Any data (including farm name) that is reported in the text should use an inline text code chunk -->
-```
-
-Run this chuck below. It will open the example report in your browser.  You should delete this chunk in your final report
-
-```{r}
-#| label: open-html-r
-#| eval: false
-
-# 1. Define the file path
-file_path <- "images/milestone_6.htm"
-
-# 2. Open the browser
-browseURL(file_path)
 ```
 
 
