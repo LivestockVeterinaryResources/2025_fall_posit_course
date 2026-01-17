@@ -155,7 +155,7 @@ lame_data <- events_formatted |>
 
 ```{r}
 #| label: functions to hide my code
-#| include: false
+#| echo: true
 
 solutions_violin <- function () {
   
@@ -245,7 +245,7 @@ A few notes:  1) The logic is to create culling variables can be complex dependi
 
 # Report for `r farm_name`
 
--   This *report* shows data from the past year from
+-   This report shows data from the past year from
     **`r format(date_min_pull, "%b %d, %y")` to
     `r format(date_max_pull, "%b %d, %y")`**.
 
@@ -281,7 +281,8 @@ with the events_formatted and animals table.
 5.  Then join this data table with the animals table to get the
     date_left, date_sold and date_died variables
 6.  Then create new culling variables as described below
-    -   **date_censor :** this is the last date the cow would have been eligible to be culled. In this dataset this would be the last date any event was entered in the data set
+    -   **date_censor :** this is the last date the cow would have been
+        eligible to be culled. In this dataset this would be the last date any event was entered in the data set
     -   **days_to_cull:** days from any event(Trim or Lame ) to culling
     -   **days_to_censor_cull:** This combines the above 2 items to calculate days from the event of interest (trim/lame) to culling or censor_date
         if not culled
@@ -541,3 +542,37 @@ Ideas
     information
 -   Try to use the survival code to get estimates for time to repeat or
     recheck?
+    
+# Code for Median Time table
+
+```{r}
+#| label: fig-example_km_median_table
+#| echo: true
+
+# times are adjustable
+
+surv_table <- km_fit |>
+  tbl_survfit(
+    probs = c(.25, .50, .75),
+    label = " ",
+    label_header = "{prob*100} %"
+  ) %>%
+  as_flex_table() %>% # makes formatting and pdf better
+  add_header_row(
+    top = TRUE,
+    values = c(
+      "Non-Infectious Lesion Status",
+      "Days to Cullling (Confidence Interval) at",
+      "", ""
+    )
+  ) %>%
+  bold(i = 1, bold = TRUE, part = "header") %>% # bolds headers
+  bold(i = 2, bold = TRUE, part = "header") %>%
+  merge_at(i = 1:2, j = 1, part = "header") %>% # merges 1st row
+  merge_at(i = 1, j = 2:4, part = "header") # merges top columns
+
+surv_table
+
+
+```
+
