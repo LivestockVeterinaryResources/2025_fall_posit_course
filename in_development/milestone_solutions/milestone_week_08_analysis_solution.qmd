@@ -245,7 +245,7 @@ A few notes:  1) The logic is to create culling variables can be complex dependi
 
 # Report for `r farm_name`
 
--   This report shows data from the past year from
+-   This *report* shows data from the past year from
     **`r format(date_min_pull, "%b %d, %y")` to
     `r format(date_max_pull, "%b %d, %y")`**.
 
@@ -285,8 +285,8 @@ with the events_formatted and animals table.
         eligible to be culled and should be the last date and event was
         entered in the data set
     -   **days_to_cull:** days from event(trimming) to culling
-    -   **days_censor_cull:** days from event to culling or censor_date
-        if not culled
+    -   **days_to_censor_cull:** days from event to culling or
+        censor_date if not culled
     -   **culled_ever:** 1 if the cow was culled, 0 if not culled
     -   **culled_last_trim:** 1 if the cow was culled after her trim
         without being trimmed again.
