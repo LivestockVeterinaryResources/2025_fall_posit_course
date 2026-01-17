@@ -128,7 +128,48 @@ ggplot(final_data)+
 
 ```
 
-## Example of adding DOP groups to lactation groups
+## Example of calculation incidence by day of phase
+
+The denominator in this case needs to be the number of animals that started the days of phase and had the opportunity to complete it (not those that completed as they could have died etc)
+
+This means that if there are many animals who don't complete the target day of phase but do not fall out because of the disease you are measuring, perhaps you should be focused on the disease that is making them fall out.
+
+### Step 1 is to understand the distribution of diagnosis by day of phase
+
+```{r}
+mast_events<-read_parquet('data/intermediate_files/events_formatted.parquet')%>%
+  
+  #select event of interest
+  filter(event %in% 'PNEU')%>% 
+  
+  #add the event counts 
+  fxn_add_event_counts()
+
+mast_events_wide<-mast_events%>% 
+  select(id_animal_lact, event_count_lact, dim_event)%>%
+  pivot_wider(names_from = event_count_lact, 
+              values_from = dim_event, 
+              names_prefix = 'Pneu ')
+```
+
+### Visualize DIM 
+
+```{r}
+for (i in seq_along(c('1','2','3','4'))){
+
+p<-ggplot(mast_events%>%
+         filter(event_count_lact %in% i))+
+     # geom_histogram(aes(x = dim_event, fill = factor(event_count_lact)))+
+
+  geom_density(aes(x = dim_event, fill = factor(event_count_lact)))+
+  facet_grid(location_event~lact_group)+
+  xlim(c(0, 400))
+print(p)
+}
+
+```
+
+
 
 The same steps apply as when using lactation groups, but in addition the day of phase group at the time of the event must be assigned.  You will notice that we selected a yearly denominator rather than monthly.  It is important to remember that when dop is used it creates many more categories so in general time periods should be longer if you are using DOP groups. 
 
