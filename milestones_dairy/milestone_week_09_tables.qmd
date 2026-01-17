@@ -132,6 +132,77 @@ The steps for this milestone are as follows (code sections for these steps are b
 ```{r}
 #| label: describe-herds
 
+#basic overview 21083
+herd_desc0_2108e <- events_formatted %>%  
+  filter(date_fresh >= today() - years(1),
+         location_event == "Herd 2108e") %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh)) %>% 
+  summarize(
+    total_count = n(),
+    av_lact = mean(lact_number),
+    av_dim = mean(dim)
+  )
+
+#basic overview 2755f 
+herd_desc0_2755f <- events_formatted %>%  
+  filter(date_fresh >= today() - years(1),
+         location_event == "Herd 2755f") %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh)) %>% 
+  summarize(
+    total_count = n(),
+    av_lact = mean(lact_number),
+    av_dim = mean(dim)
+  )
+
+#basic overview total 
+herd_desc0 <- events_formatted %>%  
+  filter(date_fresh >= today() - years(1)) %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh)) %>% 
+  summarize(
+    total_count = n(),
+    av_lact = mean(lact_number),
+    av_dim = mean(dim)
+  )
+
+# events_formatted %>% 
+#   distinct(location_event)
+
+
+#herd stats this lactation - roughly 
+herd_desc1 <- events_formatted %>% 
+  filter(date_fresh >= today() - years(1)) %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh),
+    dim_bin = cut(dim, breaks = seq(0, max(dim, na.rm = TRUE) + 60, by = 60),
+                  right = FALSE, 
+                  labels = paste(seq(0, max(dim, na.rm = TRUE), by = 60),
+                                 seq(59, max(dim, na.rm = TRUE) + 59, by = 60),
+                                 sep = "-"))) %>% 
+ group_by(lact_group_5, dim_bin, location_event) %>% 
+ summarize( 
+    lact_num  = n(), 
+    lact_perc = n() / 60353,
+    preg_perc = sum(event == "preg", na.rm = TRUE) / n(),
+    .groups = "drop"
+  ) %>% 
+  ungroup()
+
+#stats for the last 5 years 
+herd_by_year <- events_formatted %>%             # Keep only the last 5 years
+  filter(date_event >= today() - years(5)) %>%      # Extract the year of each event
+  mutate(event_year = year(date_event)) %>%
+  group_by(lact_group_repro, event_year, location_event) %>%
+  summarize(
+    lact_num  = n(),
+    lact_perc = n() / nrow(events_formatted),
+    preg_perc = sum(event == "preg", na.rm = TRUE) / n(),
+    .groups = "drop"
+  ) %>%
+  arrange(lact_group_repro, event_year) %>% 
+  ungroup()
+
+gt(herd_by_year) %>% 
+  cols_align(columns = c(lact_num, lact_perc, preg_perc), align = "left")
+
 
 
 
