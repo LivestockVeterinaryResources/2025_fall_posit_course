@@ -4,7 +4,7 @@ title: |
   <div style="text-align:center">
     <img src="logo_b.png" width="350" /><br>
     Milestone Week-8<br>
-    <span style="font-size:0.5em;">Mark Kirkpatrick DVM, MS</span>
+    <span style="font-size:1em;">Mark Kirkpatrick DVM, MS</span>
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 format:
   html:
@@ -119,6 +119,7 @@ browseURL(file_path)
 
 library(dplyr)
 
+# change the terminology from LACT>0 to Adults
 deno_summary <- deno_cal %>%
   mutate(
     year = year(date_time_period_start),
@@ -143,7 +144,6 @@ deno_summary <- deno_cal %>%
     .groups = "drop"
   )
 
-# deno_summary
 
 # =========================================================================
 # Apply gt table formatting of summarized data
@@ -165,10 +165,10 @@ deno_summary_gt <- deno_summary %>%
     rowname_col   = "Lactation Group"
   ) %>%
   
-  # Hide helper columns
+  # Hide helper columns (showing up in table)
   cols_hide(columns = c(first_row, last_row)) %>%
   
-  # Label columns
+  # Label columns names
   cols_label(
     year                    = "Year",
     location_lact_list      = "Herd",
@@ -219,7 +219,7 @@ deno_summary_gt <- deno_summary %>%
     locations = cells_body(columns = "Lactation Group")
   ) %>%
   
-  # Shade Herd 2755f rows
+  # Shade Herd 2755f rows light blue
   tab_style(
     style = list(cell_fill(color = "lightblue")),
     locations = cells_body(rows = location_lact_list == "Herd 2755f")
@@ -307,6 +307,7 @@ events_formatted <- events_formatted %>%
 cr_report <- events_formatted |>
   fxn_create_CR_reports(grp_vars = c('location_event', 'lact_group_basic', 'floor_date_year', 'Rstandard'))
 
+# Using the floor_date_year derive a 'year' only for display
 cr_clean <- cr_report %>%
   mutate(
     year = year(floor_date_year),
@@ -328,6 +329,7 @@ build_cr_table <- function(df) {
   
   subtitle_value <- unique(df$location_event)
   
+  # Describe the display titles of the report
   df %>%
     select(
       year,
@@ -355,16 +357,18 @@ build_cr_table <- function(df) {
     
     tab_header(title = "", subtitle = subtitle_value) %>%
     
+    # Install a tab spanner to highlight "Conception %"
     tab_spanner(
       label = "Conception %",
       columns = c(SPC, Risk, `95% CI`)
     ) %>%
     
+    # Format numbers and precision
     fmt_number(columns = c(Event, Preg, Total), decimals = 0, use_seps = TRUE) %>%
     # Precision = 3 for the Risk and SPC columns in the table body
     fmt_number(columns = c(SPC, Risk), decimals = 3) %>%
     
-    # ---- NANOPLOT LOGIC ----
+    # ---- NANOPLOT LOGIC ----  Colors don't register
     cols_nanoplot(
       columns = CR_bar,
       plot_type = "bar",
@@ -377,11 +381,13 @@ build_cr_table <- function(df) {
     ) %>%
     
     # Visual orange override for nanoplot bar characters
+    # Colors still don't register
     tab_style(
       style = cell_text(color = "orange"),
       locations = cells_body(columns = CR_bar)
     ) %>%
     
+    # Describe tab shading to help visibility
     tab_options(
       row.striping.background_color = "gainsboro",
       row.striping.include_table_body = TRUE
@@ -440,7 +446,6 @@ library(dplyr)
 library(survival)
 library(ggsurvfit)
 
-# ---------------------------------------------------------
 # Create variables to report mastitis and pregnancy status
 # ---------------------------------------------------------
 events_formatted <- events_formatted %>%
@@ -456,22 +461,23 @@ events_formatted <- events_formatted %>%
     preg_yn = ifelse(!is.na(date_concieved), 1, 0)
   )
 
-# ---------------------------------------------------------
+
 # Adult mastitis events only
 # ---------------------------------------------------------
 events_mast_adult <- events_formatted %>%
   filter(lact_group_basic != "Heifer",
          event == "MAST")
 
-# ---------------------------------------------------------
+
 # FRESH events only (Kaplan–Meier input)
+# Not yet accomplished is restrictions by Herd Location and total time period
 # ---------------------------------------------------------
 fresh_preg <- events_formatted %>%
   filter(lact_group_basic != "Heifer",
          event == "FRESH")
 
-# ---------------------------------------------------------
-# Collapse mastitis history to one row per animal
+
+# Collapse mastitis history (multiple incidences) to one row per animal
 # ---------------------------------------------------------
 mast_status <- events_mast_adult %>%
   group_by(id_animal_lact) %>%
@@ -481,9 +487,10 @@ mast_status <- events_mast_adult %>%
     .groups = "drop"
   )
 
-# ---------------------------------------------------------
+
 # Join mastitis status into fresh_preg
 # Keep original values if join returns NA
+# Should have removed these columns from fresh_preg before join
 # ---------------------------------------------------------
 fresh_preg <- fresh_preg %>%
   left_join(mast_status, by = "id_animal_lact", suffix = c("_orig", "_mast")) %>%
@@ -494,8 +501,8 @@ fresh_preg <- fresh_preg %>%
   select(-mast_60_yn_orig, -mast_60_yn_mast,
          -mast_yn_orig,    -mast_yn_mast)
 
-# ---------------------------------------------------------
-# Convert mast_yn to factor for KM curves
+
+# Convert mast_yn (numeric) to named factor for KM curves
 # ---------------------------------------------------------
 fresh_preg <- fresh_preg %>%
   mutate(
@@ -506,7 +513,7 @@ fresh_preg <- fresh_preg %>%
     )
   )
 
-# ---------------------------------------------------------
+
 # Kaplan–Meier model
 # ---------------------------------------------------------
 km_fit <- survfit(
@@ -514,8 +521,8 @@ km_fit <- survfit(
   data = fresh_preg
 )
 
-# ---------------------------------------------------------
-# Plot
+
+# Plot Kaplan-Meier graphic
 # ---------------------------------------------------------
 surv_plot <- km_fit |>
   ggsurvfit(type = "risk") +
@@ -527,6 +534,7 @@ surv_plot <- km_fit |>
     y = "Percent Pregnant",
     title = "Kaplan–Meier Survival: Time to Pregnancy by Mastitis Status"
   ) +
+  # Graph scale and X-axis intervals
   scale_x_continuous(
     limits = c(0, 300),
     breaks = seq(0, 300, by = 15)
@@ -551,7 +559,7 @@ fresh_preg <- fresh_preg %>%
     )
   )
 
-# ---------------------------------------------------------
+
 # Kaplan–Meier model
 # ---------------------------------------------------------
 km_fit <- survfit(
@@ -559,8 +567,8 @@ km_fit <- survfit(
   data = fresh_preg
 )
 
-# ---------------------------------------------------------
-# Plot
+
+# Plot Kaplan-Meier graphic
 # ---------------------------------------------------------
 surv_plot <- km_fit |>
   ggsurvfit(type = "risk") +
