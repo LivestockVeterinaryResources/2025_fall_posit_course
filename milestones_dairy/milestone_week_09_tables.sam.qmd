@@ -52,7 +52,7 @@ animals <- read_parquet(
   '../data/intermediate_files/animals.parquet')
 
 deno_cal <- read_parquet(
-  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
+  '../data/intermediate_files/denominator_calendar_time.parquet') |> 
   filter(deno_type == "lact_basic" & 
            calendar_time_period_type == "year") |> 
   select(-c(contains("dop"), day_of_phase_group))
@@ -131,8 +131,12 @@ The steps for this milestone are as follows (code sections for these steps are b
 
 ```{r} 
 #| label: describe-herds
-step 1 
 
+
+herd_desc1 <- events_formatted %>% 
+  filter(date_fresh >= today() - years(1)) %>% 
+ group_by(lact_group_5, ) %>% 
+  
 
 
 ```
