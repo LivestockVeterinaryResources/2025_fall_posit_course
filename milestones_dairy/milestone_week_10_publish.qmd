@@ -198,24 +198,23 @@ deno_table
 solutions_cr <- function () {
   
 cr_data <- events_formatted |> 
-  select(id_animal, date_birth, date_fresh,lact_number, lact_group_basic, 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_5, 
          date_archived, date_event, event, 
          remark_letters1, protocols_letters1, location_event, R) |> 
   mutate(floor_date_time = floor_date(date_event, "year")) |>
   filter(date_event <= date_max_pull - days(40)) |>
   fxn_create_CR_reports(grp_vars = c("location_event", 
                                      "floor_date_time", 
-                                     "lact_group_basic", "Rstandard"))
+                                     "lact_group_5", "Rstandard"))
 
 cr_table <- cr_data |> 
   select(location_event, floor_date_time,
-         lact_group_basic, `Not Bred Event`,
+         lact_group_5, `Not Bred Event`,
          Preg, Total, SPC, CR, CI_lower, CI_upper) |> 
   mutate(CR = CR*100,
          CR_graph = CR,
-         lact_group_basic = if_else(lact_group_basic == "LACT > 0",
-                                    "Adult Cows", lact_group_basic)) |> 
-  arrange(location_event, floor_date_time, lact_group_basic) |>
+        ) |> 
+  arrange(location_event, floor_date_time, lact_group_5) |>
   # 1. Group by location_event to "merge" that column into group headers
   gt(groupname_col = "location_event",
      rowname_col = "floor_date_time") |> 
@@ -236,7 +235,7 @@ cr_table <- cr_data |>
                   col_end = CI_upper) |> 
   cols_label(
     floor_date_time = "Time Period",
-    lact_group_basic = "Lactation",
+    lact_group_5 = "Lactation",
     CR = "Risk",
     CI_lower = "95% CI",
     ) |>
@@ -428,10 +427,12 @@ The steps for this milestone are as follows (code sections for these steps are b
 
     -   tab_options
 
+# Tables
+
 ::: {.panel-tabset}
-# Denominators
+## Denominators
 :::: {.panel-tabset}
-## Herd
+### Herd Size
 
 ```{r}
 #| label: describe-herds
@@ -441,7 +442,7 @@ solutions_deno()
 
 ```
 
-## Lactation
+### Lactation #'s
 
 ```{r}
 
@@ -451,11 +452,22 @@ solutions_deno_lact()
 
 
 ::::
+
+# Conception Risk
+
+```{r}
+#| label: create-cr_table
+
+solutions_cr()
+
+```
 :::
 
 
+# Graphs
 
-## Conception Risk Tables
+::: panel-tabset
+## Conception Risk
 
 Use the Parnell CR function to compare the conception risks between the 2 herds and recreate this table
 
@@ -471,12 +483,6 @@ Use the Parnell CR function to compare the conception risks between the 2 herds 
 -   summary_rows
 -   cols_nanoplot \_ cols_merge_range
 
-```{r}
-#| label: create-cr_table
-
-solutions_cr()
-
-```
 
 ## Mastitis and Conception Risk
 
