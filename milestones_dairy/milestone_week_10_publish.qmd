@@ -61,7 +61,7 @@ animals <- read_parquet(
 
 deno_cal <- read_parquet(
   '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
-  filter(deno_type == "lact_basic" & 
+  filter(deno_type %in% c("lact_basic", "lact_5+") & 
            calendar_time_period_type == "year") |> 
   select(-c(contains("dop"), day_of_phase_group)) |> 
   filter(location_lact_list %in% params$herd) |> 
@@ -143,6 +143,55 @@ deno_table <- deno_cal |>
 deno_table
 
 }
+
+solutions_deno_lact <- function () {
+  
+deno_table <- deno_cal |> 
+  select(location_lact_list, 
+         date_time_period_start,
+         group = 'Lactation Group' , ct_animal_days_elig, 
+         ct_animal_time_periods, ct_animal_lactations,
+         ct_animals) |>
+  filter(!group %in% c("Heifer","LACT > 0" )) |>
+  gt(groupname_col = "location_lact_list",
+     rowname_col = "date_time_period_start") |> 
+  fmt_date(columns = date_time_period_start,
+           date_style = "year") |> 
+  fmt_number(columns = c(starts_with("ct")), decimals = 0) |> 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+    cols_label(
+      group = "Group",
+    date_time_period_start = "Time Period",
+    ct_animal_days_elig = "Days at risk",
+    ct_animal_time_periods = "DAR Animals",
+    ct_animal_lactations = "Lactations",
+    ct_animals = "Animals"
+    ) |> 
+  tab_spanner(
+    label = "Count of",
+    columns = c(ct_animal_days_elig, ct_animal_time_periods,
+                ct_animal_lactations, ct_animals)
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  ) 
+    
+    
+deno_table
+
+}
+
 
 # CR
 
@@ -380,7 +429,9 @@ The steps for this milestone are as follows (code sections for these steps are b
     -   tab_options
 
 ::: {.panel-tabset}
-# Herd Denominator Table
+# Denominators
+:::: {.panel-tabset}
+## Herd
 
 ```{r}
 #| label: describe-herds
@@ -389,6 +440,20 @@ solutions_deno()
 
 
 ```
+
+## Lactation
+
+```{r}
+
+
+solutions_deno_lact()
+```
+
+
+::::
+:::
+
+
 
 ## Conception Risk Tables
 
