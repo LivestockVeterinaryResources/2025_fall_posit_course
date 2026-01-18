@@ -135,13 +135,42 @@ The same steps apply as when using lactation groups, but in addition the day of 
 ### First, select your denominator. 
 
 ```{r, echo = TRUE}
-denominator_dop<-read_parquet('data/intermediate_files/denominator_by_calendar_time_period.parquet')%>%
+denominator_dop_pre<-read_parquet('data/intermediate_files/denominator_by_calendar_time_period.parquet')
+
+tbl_deno_types<-denominator_dop_pre%>%
+  group_by(deno_type)%>%
+  summarize(list_lactation_groups = paste0(sort(unique(`Lactation Group`)), collapse = ', '), 
+            list_dop_groups = paste0(sort(unique(`day_of_phase_group`)), collapse = ', ')
+            )%>%
+  distinct()
+
+denominator_dop<-denominator_dop_pre%>%
   filter(calendar_time_period_type %in% 'year')%>% #choose denominator period type
   filter(deno_type %in% 'dop_lact_3+')%>% #choose the type of lactation group
   distinct() 
 
 
 ```
+
+
+
+#### Visualize your denominator
+
+```{r}
+
+list_herds<-sort(unique(denominator_dop$location_lact_list))
+
+for (i in seq_along(list_herds)){
+p<-ggplot(denominator_dop%>%filter(location_lact_list %in% list_herds[[i]]))+
+  geom_point(aes(x = date_time_period_start, y = ct_animal_time_periods, color = dop_complete))+
+  facet_grid(`Lactation Group`~day_of_phase_group)+
+  labs(title = paste0(list_herds[[i]]))
+print(p)
+}
+
+
+```
+
 
 ### Next Then summarize events according to denominator.
 
