@@ -75,6 +75,20 @@ data_pull_max<-max(animals$data_pull_date_max)
 
 ```
 
+## Active animals
+
+This section displays the active animals.  This is a good place to check that the counts make sense.
+
+```{r}
+active_animals<-animal_lactations%>%
+  filter(status %in% 'active')
+
+ggplot(active_animals)+
+  geom_bar(aes(x = lact_group))+
+  facet_wrap(location_lact_last~.)
+```
+
+
 
 ## Define calendar days for calculations 
 
@@ -156,6 +170,8 @@ set_deno_base_type<-deno_all_lact #any animal is eligible
 ```
 
 ## Create cut points for day of phase
+
+The values for the cut points come from the initial set up in step 0.  You should modify the values there, not within this script.  
 
 ```{r}
  dim_cuts<-tibble(dop_start = c(-Inf, seq(0, params$top_cut, by = params$cut_by_days)))%>%
@@ -383,14 +399,16 @@ ggplot(deno_final%>%
   theme_bw()+
   labs(title = 'Animal Time Periods (ct_animal_time_periods)')
 ```
+
+
 ### Plot Counts by Day of Phase
 
-The default day of phase cut points are every 30 days, with a max of 400 for cows and 500 for heifers.
+The default day of phase cut points are every 100 days, with a max of 400 for cows and 700 for heifers.
 These settings can be modified if you wish by adjusting the the params in this quarto document when rendered.
 
 In the dop files there is an additional variable named `dop_complete`.  This variable groups the counts by whether or not the dop interval was complete or partial.
 
-Notice that the dop for heifers and cows is different.  Keep this in mind when reporting.
+Notice that the dop groups for heifers and cows is different.  Keep this in mind when reporting.
 
 ```{r}
 
