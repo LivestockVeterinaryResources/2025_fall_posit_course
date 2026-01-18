@@ -1,0 +1,126 @@
+---
+title: "Untitled"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+
+econ_id<-read_csv('junk/MMW ECONID 10.17.25.csv')
+
+
+
+deno_calendar<-read_parquet('data/intermediate_files/denominator_by_calendar_time_period.parquet')
+sort(unique(deno_calendar$deno_type))
+
+```
+
+## Choose calendar denominator
+
+```{r}
+choose_deno<-deno_calendar%>%filter(deno_type %in% 'lact_2+')%>%
+  mutate(data_source = 'calendar deno')#%>%
+  #filter(calendar_time_period_type %in% 'bimonth')
+```
+
+## Wrangle econ to match calender
+
+```{r}
+wrangle_econ_id<-econ_id%>%
+  select(WeekDate, `LACT>1`, `LACT=0`, `LACT=1`)%>%
+  pivot_longer(cols = c('LACT>1', 'LACT=0', 'LACT=1'), 
+               names_to = 'Lactation Group', 
+               values_to = 'econid_count')%>%
+  mutate(WeekDate = lubridate::mdy(WeekDate), 
+         econid_count = parse_number(econid_count))%>%
+  filter(!(is.na(WeekDate)))%>%
+  mutate(data_source = 'econ id')%>%
+  mutate(`Lactation Group` = case_when(
+    (`Lactation Group` %in% 'LACT=0')~'Heifer', 
+    (`Lactation Group` %in% 'LACT=1')~'LACT 1', 
+    (`Lactation Group` %in% 'LACT>1')~'LACT 2+',
+    TRUE~'Unknown')
+  )
+```
+
+## Visualize
+
+Only heifers of off? and only recently??
+
+```{r}
+
+ggplot()+
+  geom_point(data = wrangle_econ_id,
+             aes(x = WeekDate, y = econid_count, color = data_source), 
+             shape = 15, size = 1)+
+    geom_point(data = choose_deno,
+             aes(x = date_time_period_start, y = ct_animal_time_periods, color = data_source), 
+             shape = 18, size = 1)+
+  facet_wrap(`Lactation Group`~., scales = 'free')+
+  theme_bw()+
+  theme(legend.position = 'top')+
+  scale_color_manual(values = c('calendar deno' = 'red', 'econ id' = 'black'))
+
+#ggsave('weird.jpg')
+
+```
+
+
+
+```{r}
+check_hfr_events<-read_parquet('data/intermediate_files/events_all_columns.parquet')%>%
+  filter(lact_number == 0)%>%
+  mutate(floordate_month = floor_date(date_event, unit = 'months'))%>%
+  group_by(floordate_month, event_type, event)%>%
+  summarize(ct_rows = sum(n()), 
+            ct_animals = n_distinct(id_animal))%>%
+  ungroup()
+```
+
+
+## Health Events
+
+```{r}
+ggplot(check_hfr_events%>%filter(event_type %in% 'health'))+
+  geom_point(aes(x = floordate_month, y = ct_animals, color = event))+
+  facet_wrap(event_type~.)
+
+```
+
+## Management Events
+
+```{r}
+ggplot(check_hfr_events%>%filter(event_type %in% 'management'))+
+  geom_point(aes(x = floordate_month, y = ct_animals, color = event))+
+  facet_wrap(event_type~.)
+
+```
+
+## Lactation Parameters
+
+```{r}
+ggplot(check_hfr_events%>%filter(event_type %in% 'lact_parameter'))+
+  geom_point(aes(x = floordate_month, y = ct_animals, color = event))+
+  facet_wrap(event_type~.)
+
+```
+
+## Repro Events
+
+```{r}
+ggplot(check_hfr_events%>%filter(event_type %in% 'repro'))+
+  geom_point(aes(x = floordate_month, y = ct_animals, color = event))+
+  facet_wrap(event_type~.)
+
+```
+
+## Unknown Events
+
+```{r}
+ggplot(check_hfr_events%>%filter(event_type %in% 'unknown'))+
+  geom_point(aes(x = floordate_month, y = ct_animals, color = event))+
+  facet_wrap(event_type~.)
+
+```
+

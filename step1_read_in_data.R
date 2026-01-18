@@ -19,6 +19,7 @@ list_files<-list.files('data/event_files') #folder name where event files are lo
 
 events<-NULL
 
+#i=1
 for (i in seq_along(list_files)){
   df<-read_csv(paste0('data/event_files/', 
                       list_files[i]), 

@@ -131,12 +131,48 @@ ggplot(final_data)+
 
 ## Simple Day of Phase
 
-The most straight forward way to look at disease by day of phase is to begin with animal_lactations.
-Decide what grouping variables you want.  Your grouping should include a variable the creates a cohort (such as fresh season)
+The most straight forward way to look at disease by day of phase is to begin with looking at your disease distribution by day of phase.  We will use pneumonia for this example. Choose your target day of phase range according to the distribution.
+
+
 
 ```{r}
 
+#check on odd things - only 2 events with neg dim
+neg_dim<-events_formatted%>%filter(event %in% 'PNEU')%>%
+  filter(dim_event<0)
 
+#get events of interest
+pneu_events<-events_formatted%>%filter(event %in% 'PNEU')
+
+#timing of disease
+ggplot(pneu_events)+
+  geom_histogram(aes(x = dim_event, color = lact_group_basic))+
+  geom_vline(xintercept = 150)+
+  geom_text(aes(x = 150, y = Inf, label = '150 dim'), hjust = 1, vjust = 1)+
+  facet_wrap(location_event~lact_group_basic, scale = 'free_y')+
+  coord_cartesian(xlim = c(0, NA))
+
+```
+
+
+For this example lets look at disease prior to 150 dim (or days of age in heifers), and incidence after 150 dim.
+This may or may not make sense for your own data, but you can use this as template code and adjust if a different cut point makes more sense.
+
+To get incidence we first need our denominator. So, we need to start with a data frame where each row is a animal lactation.  We then need to understand which rows represent lactations where we have all the information, and which we don't.  i.e. those that started after the data was pulled and those that did not.  
+
+
+```{r}
+animals<-read_parquet('data/intermediate_files/animals.parquet')
+animal_lactations<-read_parquet('data/intermediate_files/animal_lactations.parquet')
+
+day_of_phase_min<-0
+day_of_phase_max<-60
+
+deno_day_of_phase<-animal_lactations%>%
+  left_join(animals)%>%
+  mutate(cohort_fresh = floor_date(date_fresh, unit = 'year'))%>%
+  mutate(dop_min = day_of_phase_min, 
+         dop_max = day_of_phase_max)
 ```
 
 
