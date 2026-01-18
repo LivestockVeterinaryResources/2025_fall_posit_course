@@ -245,6 +245,7 @@ for (i in seq_along(calendar$date_calendar)){
     ))
   
   df<-df_pre%>%filter(elig_days>0) #this restricts to only animals with at least 1 eligible day
+    
   
   #errors-----------------------------
   df_error <-df_pre%>%
