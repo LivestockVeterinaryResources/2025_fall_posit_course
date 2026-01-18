@@ -128,6 +128,18 @@ ggplot(final_data)+
 
 ```
 
+
+## Simple Day of Phase
+
+The most straight forward way to look at disease by day of phase is to begin with animal_lactations.
+Decide what grouping variables you want.  Your grouping should include a variable the creates a cohort (such as fresh season)
+
+```{r}
+
+
+```
+
+
 ## Example of adding DOP groups to lactation groups
 
 The same steps apply as when using lactation groups, but in addition the day of phase group at the time of the event must be assigned.  You will notice that we selected a yearly denominator rather than monthly.  It is important to remember that when dop is used it creates many more categories so in general time periods should be longer if you are using DOP groups. 
