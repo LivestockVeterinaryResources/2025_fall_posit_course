@@ -399,8 +399,7 @@ steps are below)
 
 5.  Once you have a completed report for one herd and year you can use
     quarto to render reports for multiple herds/years by using the file
-    ***milestone_10_render.R*** in the main directory (same one as step
-    0)  
+    ***milestone_10_render.R*** in the main directory (same one as step 0)  
 
     -   If you are using your own data adjust the herd names and years
         in the code of that document.
