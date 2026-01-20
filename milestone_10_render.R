@@ -1,4 +1,6 @@
 # code to render the 4 documents
+# If you just want to render documents without year use the 2nd code
+# that just has walk not pwalk.
 
 
 library(tidyverse)
@@ -32,3 +34,14 @@ pwalk(render_jobs, function(year, farm) {
     )
   )
 })
+
+# alternative version if you want to render only for a single year and but multiple farms
+
+walk(farms, 
+     \(x) quarto::quarto_render(
+       input = "milestones_dairy/milestone_week_10_publish.qmd",
+       output_format = "html",
+       execute_params = list(herd = x),
+      output_file = str_glue("farm_report_{x}.html")
+     )
+)
