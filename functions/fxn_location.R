@@ -3,7 +3,8 @@ library(tidyverse)
 fxn_assign_location_event_default <- function(df){
   df%>%
     mutate(
-      location_event = set_farm_name
+      location_event = source_file_path
+      #location_event = HERDID
       )
 }
 
