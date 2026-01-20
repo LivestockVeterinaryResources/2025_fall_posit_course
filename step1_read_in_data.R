@@ -19,6 +19,7 @@ list_files<-list.files('data/event_files') #folder name where event files are lo
 
 events<-NULL
 
+#i=1
 for (i in seq_along(list_files)){
   df<-read_csv(paste0('data/event_files/', 
                       list_files[i]), 
@@ -148,7 +149,11 @@ mutate(technician = Technician,
       (lact_number >4)~'LACT 5+',
       TRUE~'Unknown')
   )%>%
-  mutate(id = ID)
+  mutate(id = ID)%>%
+  mutate(status = case_when(
+    is.na(date_archived)~'active', 
+    TRUE~'archived'
+  ))
 
 
 
@@ -165,7 +170,7 @@ write_parquet(events2%>%
                        id_animal, id,
                        date_birth, breed, #eid, 
                        date_enrolled, qc_diff_bdat_edat,
-                       id_animal_lact, date_fresh, date_archived, 
+                       id_animal_lact, date_fresh, date_archived, status,
                        lact_number, lact_group_basic, lact_group, lact_group_repro, lact_group_5,
                        event_type, event, remark, contains('remark'), protocols, contains('protocols'), 
                        technician, date_event, dim_event, location_event, locate_lesion, 
