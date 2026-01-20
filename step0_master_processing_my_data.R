@@ -37,7 +37,6 @@ source("functions/fxn_event_type.R") # c function to categorize events
 source("functions/fxn_disease.R")
 source("functions/fxn_treatment.R")
 
-
 # SETUP-----------------------------
 
 ## Set custom functions----
@@ -47,8 +46,8 @@ source("functions/fxn_treatment.R")
 ## If you choose to use custom functions you must source them when you assign them
 
 ### animal id  (turn on only one of these lines) ---------
-# fxn_assign_id_animal <- fxn_assign_id_animal_default
-fxn_assign_id_animal <- fxn_assign_id_animal_parnell
+ fxn_assign_id_animal <- fxn_assign_id_animal_default
+#fxn_assign_id_animal <- fxn_assign_id_animal_parnell
 
 ### denominator granularity-----------------------
 #Create a list of time periods (number of days) by which denominators will be created.  
@@ -73,9 +72,9 @@ fxn_parse_remark <- fxn_parse_remark_default
 fxn_parse_protocols <- fxn_parse_protocols_default
 
 ### locations  ((turn on only one location function) ----------
-set_farm_name <- "Example Herd" # if you are not using the default location function this name will never be used
-# fxn_assign_location_event <- fxn_assign_location_event_default
-fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
+set_farm_name <- "Example Herd" # this is old
+fxn_assign_location_event <- fxn_assign_location_event_default
+#fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
 
 # detect_location_lesion options:
 fxn_detect_location_lesion <- fxn_detect_location_lesion_default
@@ -96,17 +95,18 @@ set_outcome_gap_lactation <- 1
 
 
 
+
 ## Set up processing -------------------------------
 #**** Modify This Section***
 
 ### clean up old data ---------------------------------
 #*** DANGER*** make sure you understand this setting if you change it to TRUE
-clean_slate <- TRUE # this will delete all data in data/event_files and data/intermediate files
+clean_slate <- FALSE # this will delete all data in data/event_files and data/intermediate files
 
 ### EXAMPLE data google drive-----------
 # set this to TRUE to pull EXAMPLE data from google drive.
 # if you already have the data that you want in data/event_files set it to false
-get_EXAMPLE_data_from_google_drive <- TRUE
+get_EXAMPLE_data_from_google_drive <- FALSE
 
 ### milk data setings---------
 # if you also want to pull in milk data set this to true
