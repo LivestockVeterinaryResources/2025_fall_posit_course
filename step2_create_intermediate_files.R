@@ -30,10 +30,13 @@ animals <- events_formatted |>
     # source_farm, source_state, #optional
     data_pull_date_min, data_pull_date_max
   ) |>
+  arrange(id_animal, date_event)%>%
   summarize(
     breed = paste0(sort(unique(breed)), collapse = ","),
     sex = max(RC),
-    location_list = paste0(sort(unique(location_event)), collapse = ",")
+    location_list = paste0(sort(unique(location_event)), collapse = ","), 
+    location_first = first(location_event), 
+    location_last = last(location_event)
   ) |>
   ungroup() %>%
   mutate(sex = case_when(
@@ -101,14 +104,18 @@ write_parquet(master_animals, "data/intermediate_files/animals.parquet")
 
 ## animal_lactations - each row is an animal/lactation----------
 animal_lactations <- events_formatted |>
+  arrange(id_animal, date_event)%>%
   group_by(
     id_animal, id_animal_lact, lact_number, ID,
     lact_group, lact_group_basic, lact_group_repro, lact_group_5
   ) |>
   summarize(
+    status = paste0(sort(unique(status)), collapse = ','),
     date_lact_first_event = min(date_event),
     date_lact_last_event = max(date_event),
-    location_lact_list = paste0(sort(unique(location_event)), collapse = ",")
+    location_lact_list = paste0(sort(unique(location_event)), collapse = ","), 
+    location_lact_first = first(location_event), 
+    location_lact_last = last(location_event)
   ) |>
   ungroup()
 
