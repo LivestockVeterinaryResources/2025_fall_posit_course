@@ -1,0 +1,56 @@
+---
+title: 
+author:
+date: 
+format:
+  html:
+    page-layout: full
+    theme: flatly
+    df_print: paged
+    toc: true
+    toc-location: left
+    number-sections: false
+    code-fold: true
+execute:
+  message: false
+  warning: false
+  echo: false
+embed-resources: true
+params:
+  event:
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  broom,
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  survival,
+  survminer,
+  ggsurvfit,
+  flextable,
+  gtsummary,
+  marginaleffects,
+  scales,
+  zoo
+  )
+
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet') |> 
+  filter(lact_number=="9")
+
+animals <- read_parquet(
+  '../data/intermediate_files/animals.parquet')
+filter(lact_number=="9
+```
+

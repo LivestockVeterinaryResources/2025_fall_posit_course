@@ -3,7 +3,7 @@ library(tidyverse)
 fxn_assign_location_event_default <- function(df){
   df%>%
     mutate(
-      location_event = set_farm_name
+      location_event = HERDID
       )
 }
 
@@ -50,3 +50,5 @@ fxn_detect_location_lesion_default<-function(df){
     )%>%
     mutate(locate_lesion = paste0(detectRR, detectLR, detectRF, detectLF))
 }
+
+

@@ -73,8 +73,8 @@ fxn_parse_protocols <- fxn_parse_protocols_default
 
 ### locations  ((turn on only one location function) ----------
 #set_farm_name <-  # if you are not using the default location function this name will never be used
-#fxn_assign_location_event <- fxn_assign_location_event_default
-fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
+fxn_assign_location_event <- fxn_assign_location_event_default
+#fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
 
 # detect_location_lesion options:
 fxn_detect_location_lesion <- fxn_detect_location_lesion_default
@@ -171,9 +171,9 @@ for (i in seq_along(denominator_time_periods)){
 
 #### run the report named (report_how_to_use_denominators.qmd) to learn to use denominators
 
-##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
-rm(list = ls()) # clean environment
-quarto::quarto_render("step3_create_denominators_lact_dim_season.qmd") # denominators for lameness report
+# ##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
+# rm(list = ls()) # clean environment
+# quarto::quarto_render("step3_create_denominators_lact_dim_season.qmd") # denominators for lameness report
 
 
 
