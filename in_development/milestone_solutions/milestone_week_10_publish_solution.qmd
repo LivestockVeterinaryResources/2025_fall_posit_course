@@ -1,0 +1,483 @@
+---
+title: "Week 10 Milestone Params"
+subtitle: "`r params$year` Report for `r params$herd`" 
+author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
+date: "`r Sys.Date()`"
+format:
+  html:
+    page-layout: full
+    theme: flatly
+    df_print: paged
+    toc: true
+    toc-location: left
+    number-sections: false
+    code-fold: true
+execute:
+  message: false
+  warning: false
+  echo: false
+embed-resources: true
+params:
+  herd: "Herd 2108e"
+  year: 2024
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  broom,
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  survival,
+  survminer,
+  ggsurvfit,
+  flextable,
+  gtsummary,
+  marginaleffects,
+  scales,
+  zoo
+  )
+
+year_filter <- make_date(params$year, 1, 1)
+
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet')|> 
+  filter(location_event %in% params$herd) |> 
+  filter(date_event >= year_filter & date_event < year_filter + years(1))
+
+animals <- read_parquet(
+  '../data/intermediate_files/animals.parquet') |> 
+  filter(location_list %in% params$herd) 
+
+deno_cal <- read_parquet(
+  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
+  filter(deno_type %in% c("lact_basic", "lact_5+") & 
+           calendar_time_period_type == "year") |> 
+  select(-c(contains("dop"), day_of_phase_group)) |> 
+  filter(location_lact_list %in% params$herd) |> 
+  filter(date_time_period_start >= year_filter & date_time_period_start < year_filter + years(1))
+
+  
+# load GC's functions
+source('../functions/fxn_load_os_fxns.R')
+fxn_load_os_fxns()
+
+# Load Parnell CR fucntions from Github
+cr_url <- "https://raw.githubusercontent.com/ParnellPharma/ParnellFunctionsPublic/main/parnell_calculate_CR_master.R"
+source(cr_url)
+
+herd <- params$herd
+
+farm_name <- unique(events_formatted$location_event)
+
+# create variables for inline code
+
+date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
+date_min_pull <- date_max_pull - years(1)
+
+# pull data for graphs
+source('../functions/fxn_milestone8_solution.R')
+
+
+```
+
+```{r}
+#| label: functions to hide my code
+#| echo: false
+
+solutions_deno <- function () {
+  
+deno_table <- deno_cal |> 
+  select(location_lact_list, 
+         date_time_period_start,
+         group = 'Lactation Group' , ct_animal_days_elig, 
+         ct_animal_time_periods, ct_animal_lactations,
+         ct_animals) |>
+  mutate(group = if_else(group == "LACT > 0",
+                                    "Adult Cows", group)
+         ) |>
+  gt(groupname_col = "location_lact_list",
+     rowname_col = "date_time_period_start") |> 
+  fmt_date(columns = date_time_period_start,
+           date_style = "year") |> 
+  fmt_number(columns = c(starts_with("ct")), decimals = 0) |> 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+    cols_label(
+      group = "Group",
+    date_time_period_start = "Time Period",
+    ct_animal_days_elig = "Days at risk",
+    ct_animal_time_periods = "DAR Animals",
+    ct_animal_lactations = "Lactations",
+    ct_animals = "Animals"
+    ) |> 
+  tab_spanner(
+    label = "Count of",
+    columns = c(ct_animal_days_elig, ct_animal_time_periods,
+                ct_animal_lactations, ct_animals)
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  ) 
+    
+    
+deno_table
+
+}
+
+solutions_deno_lact <- function () {
+  
+deno_table <- deno_cal |> 
+  select(location_lact_list, 
+         date_time_period_start,
+         group = 'Lactation Group' , ct_animal_days_elig, 
+         ct_animal_time_periods, ct_animal_lactations,
+         ct_animals) |>
+  filter(!group %in% c("Heifer","LACT > 0" )) |>
+  gt(groupname_col = "location_lact_list",
+     rowname_col = "date_time_period_start") |> 
+  fmt_date(columns = date_time_period_start,
+           date_style = "year") |> 
+  fmt_number(columns = c(starts_with("ct")), decimals = 0) |> 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+    cols_label(
+      group = "Group",
+    date_time_period_start = "Time Period",
+    ct_animal_days_elig = "Days at risk",
+    ct_animal_time_periods = "DAR Animals",
+    ct_animal_lactations = "Lactations",
+    ct_animals = "Animals"
+    ) |> 
+  tab_spanner(
+    label = "Count of",
+    columns = c(ct_animal_days_elig, ct_animal_time_periods,
+                ct_animal_lactations, ct_animals)
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  ) 
+    
+    
+deno_table
+
+}
+
+
+# CR
+
+solutions_cr_data <- function () {
+  
+cr_data <- events_formatted |> 
+  select(id_animal, date_birth, date_fresh,lact_number, lact_group_5, 
+         date_archived, date_event, event, 
+         remark_letters1, protocols_letters1, location_event, R) |> 
+  mutate(floor_date_time = floor_date(date_event, "year")) |>
+  filter(date_event <= date_max_pull - days(40)) |>
+  fxn_create_CR_reports(grp_vars = c("location_event", 
+                                     "floor_date_time", 
+                                     "lact_group_5", "Rstandard"))
+
+return(cr_data)
+}
+
+solutions_cr_table <- function() {
+cr_table <- cr_data |> 
+  select(location_event, floor_date_time,
+         lact_group_5, `Not Bred Event`,
+         Preg, Total, SPC, CR, CI_lower, CI_upper) |> 
+  mutate(CR = CR*100,
+         CR_graph = CR,
+        ) |> 
+  arrange(location_event, floor_date_time, lact_group_5) |>
+  # 1. Group by location_event to "merge" that column into group headers
+  gt(groupname_col = "location_event",
+     rowname_col = "floor_date_time") |> 
+  # 2. Bold the column labels
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |> 
+  # Optional: Clean up the date display
+  fmt_date(columns = floor_date_time, date_style = "year") |> 
+  fmt_number(c(CR, CI_lower, CI_upper, SPC), 
+             decimals = 1) |> 
+  fmt_number(columns = `Not Bred Event`, decimals = 0) |> 
+  tab_options(
+    row_group.font.weight = "bold" # Bolds the Location  
+  )  |> 
+  cols_merge_range(col_begin = CI_lower,
+                  col_end = CI_upper) |> 
+  cols_label(
+    floor_date_time = "Time Period",
+    lact_group_5 = "Lactation",
+    CR = "Risk",
+    CI_lower = "95% CI",
+    ) |>
+  cols_nanoplot(columns = c(CR_graph),
+                plot_type = "bar",
+                new_col_name = "Plot",
+                new_col_label = md("**Plot**"),
+                options = nanoplot_options(data_bar_fill_color = "orange",
+                                           data_bar_stroke_color = "black")
+    ) |> 
+  summary_rows(
+    groups = everything(), # Adds summary to every group
+    columns = c(CR), # Columns you want to summarize
+    fns = list(
+      "Location Average" = ~mean(., na.rm = TRUE)
+    ),
+    fmt = ~fmt_number(., columns = c(CR), decimals = 1)
+    )|> 
+  tab_spanner(
+    label = "Conception (%)",
+    columns = c(CR, CI_lower, 'Plot')
+  ) |>
+    tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners()
+  ) |> 
+  cols_align(align = "center",
+             columns = everything()) |> 
+  tab_style(locations = cells_summary(),
+             style = list(
+               cell_text(weight = "bold"),
+               cell_fill("lightblue")
+             )
+            ) 
+ cr_table
+}
+
+solutions_violin <- function () {
+  
+violin <- log_data |> 
+  ggplot(aes(x = days_to_cull, y = fct_rev(lesion),
+             fill = lesion)
+                  ) +
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75),
+              quantile.colour = "red",
+              scale = "count")+
+  theme_minimal()+
+  labs(x = "Days to Culling after Trim",
+       y = "")+
+  scale_fill_viridis_d()+
+  theme(legend.position = "none")
+
+
+violin
+
+}
+
+# heat map of culled 30 with denominator # cows trimmed
+
+solutions_heatmap <- function () {
+heat_map_lact <- log_data |>
+  group_by(noninf, lact_group, culled_30) |> 
+  summarise(count = n(), .groups = "drop") |> 
+  group_by(noninf, lact_group) |>
+  mutate(pct = count / sum(count)) |> 
+  ungroup()
+
+heat_map_sum <- log_data |> 
+  group_by(noninf, culled_30) |>
+  summarise(count = n(), .groups = "drop") |>
+  group_by(noninf) |>
+  mutate(pct = count / sum(count),
+         lact_group = "Overall") |> 
+  ungroup()
+
+
+heat_map <- bind_rows(heat_map_lact, heat_map_sum)
+ 
+
+heat_plot <- heat_map |> 
+  filter(culled_30 == 1) |>
+  mutate(lact_group = fct_relevel(lact_group, 
+                                  c("LACT 3+", 
+                                    "LACT 2", 
+                                    "LACT 1", 
+                                    "Overall"))                                    ) |> 
+  ggplot(aes(x = noninf, y = fct_rev(lact_group),
+             fill = pct)
+         ) +
+  geom_tile()+
+  geom_text(aes(label = str_glue(
+    "{round(pct * 100, 1)}% ({count})")),
+          color = "black", 
+          size = 3)+
+  scale_fill_viridis_c(name = "% Culled within 30 days",
+                       labels = scales::percent_format(accuracy = 1),
+                       alpha = 0.8,
+                       option = "C")+
+  theme_minimal()+
+  labs(x = "",
+      y = "")+
+  theme(axis.ticks.y=element_blank())
+
+heat_plot
+}
+
+```
+
+```{r}
+#| label: create-inline-variables
+#| echo: false
+
+max_cr <- solutions_cr_data()|> 
+  filter(lact_group_5 != "Heifer") |> 
+  mutate(lact_group_5 = str_replace(lact_group_5, "LACT", "Lactation")) |> 
+  slice_max(CR) |> 
+  select(lact_group_5, CR) |> 
+  mutate(CR = round(CR*100, digits = 1))
+
+heifer_cr <- solutions_cr_data()|> 
+  filter(lact_group_5 == "Heifer") |> 
+  mutate(CR = round(CR*100, digits = 1)) |> 
+  pull(CR)
+
+compare <- ifelse(heifer_cr > max_cr$CR, "higher", "lower")
+
+cows <- deno_cal |> 
+  filter(`Lactation Group` == "LACT > 0") |> 
+  pull(ct_animals)
+
+
+```
+
+# Report for `r herd`
+
+## Objective
+
+The objective of this milestone is to run a report over multiple herds
+and years. Feel free to use existing code from previous milestones to
+minimize the time spend creating new code. Try to include some in line R
+code in the text that changes based on the herd you are working with.
+
+The steps for this milestone are as follows (code sections for these
+steps are below)
+
+1.  Re-Run **step0_master_processing.R** if you did not do it last week
+    to give you at least 2 herds to run a report on.
+
+2.  I did not load any github functions automatically so if you want to
+    call the functions we used previously you will need to load these.
+
+3.  Set *params* in the yaml to include herd and year.
+
+4.  Insert some tables and graphs from previous milestones into this
+    document using tabs/columns or whatever layout you prefer. The data
+    in these tables/graphs should be for each herd and for each year.
+
+5.  Once you have a completed report for one herd and year you can use
+    quarto to render reports for multiple herds/years by using the file
+    ***milestone_10_render.R*** in the main directory (same one as step 0)  
+
+    -   If you are using your own data adjust the herd names and years
+        in the code of that document.
+        -  You can also just run the report for 1 year by setting params to 1 year.
+
+# Conception Risk Comparison
+
+This herd of **`r cows`** cows had a conception risk of
+**`r heifer_cr`%** in heifers of in **`r params$year`**. Compared to
+lactating cows this heifer CR was **`r compare`** than the highest
+conception risk **(`r max_cr$CR`%)** in **`r max_cr$lact_group_5`**
+
+# Tables
+
+:::: panel-tabset
+## Denominators
+
+::: panel-tabset
+### Herd Size
+
+```{r}
+#| label: describe-herds
+
+solutions_deno()
+
+
+```
+
+### Lactation \#'s
+
+```{r}
+
+
+solutions_deno_lact()
+```
+:::
+
+## Conception Risk
+
+```{r}
+#| label: create-cr_table
+
+cr_data <- solutions_cr_data() 
+solutions_cr_table()
+
+```
+::::
+
+# Graphs
+
+::: panel-tabset
+## Lameness timing
+
+```{r}
+#| label: create-violin
+#| echo: true
+
+solutions_violin()
+
+```
+
+## Lesions Risk
+
+```{r}
+#| label: create-heatmap
+#| echo: true  
+
+solutions_heatmap()
+
+```
+:::
+
+# Extension
+
+For this week extension continue to create standard things you would
+want to report or incorporate modeling techniques to explore the data
+
+Ideas
+
+-   Change the params to change the report by something other than herd or year.
+-   Finalize your report that you would use on a routine basis in your practice.

@@ -46,16 +46,16 @@ source("functions/fxn_treatment.R")
 ## If you choose to use custom functions you must source them when you assign them
 
 ### animal id  (turn on only one of these lines) ---------
-fxn_assign_id_animal <- fxn_assign_id_animal_default
+ fxn_assign_id_animal <- fxn_assign_id_animal_default
 #fxn_assign_id_animal <- fxn_assign_id_animal_parnell
 
 ### denominator granularity-----------------------
 #Create a list of time periods (number of days) by which denominators will be created.  
 #The standard options are 21, 30, 90, 365.  However any number works.
 #You can add or delete as you wish, except for yearly. Yearly needs to stay
-denominator_time_periods<-c(21, 
+denominator_time_periods<-c(#21, 
                             30, 
-                            90, 
+                            #90, 
                             365) #do NOT delete the yearly option or you will break the data_dictionary
 
 ### day of phase parameters-----------------------------------
@@ -72,7 +72,7 @@ fxn_parse_remark <- fxn_parse_remark_default
 fxn_parse_protocols <- fxn_parse_protocols_default
 
 ### locations  ((turn on only one location function) ----------
-#set_farm_name <-  # if you are not using the default location function this name will never be used
+set_farm_name <- "Example Herd" # this is old
 fxn_assign_location_event <- fxn_assign_location_event_default
 #fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
 
@@ -101,7 +101,7 @@ set_outcome_gap_lactation <- 1
 
 ### clean up old data ---------------------------------
 #*** DANGER*** make sure you understand this setting if you change it to TRUE
-clean_slate <- TRUE # this will delete all data in data/event_files and data/intermediate files
+clean_slate <- FALSE # this will delete all data in data/event_files and data/intermediate files
 
 ### EXAMPLE data google drive-----------
 # set this to TRUE to pull EXAMPLE data from google drive.
@@ -171,9 +171,9 @@ for (i in seq_along(denominator_time_periods)){
 
 #### run the report named (report_how_to_use_denominators.qmd) to learn to use denominators
 
-# ##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
-# rm(list = ls()) # clean environment
-# quarto::quarto_render("step3_create_denominators_lact_dim_season.qmd") # denominators for lameness report
+##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
+rm(list = ls()) # clean environment
+quarto::quarto_render("step3_create_denominators_lact_dim_season.qmd") # denominators for lameness report
 
 
 
@@ -185,10 +185,10 @@ quarto::quarto_render("report_explore_event_types.qmd")
 quarto::quarto_render("report_data_dictionary.qmd")
 
 ## Gerard's lameness report ---------------------------
-#quarto::quarto_render("report_explore_lame.qmd")
+quarto::quarto_render("report_explore_lame.qmd")
 
 ## Example reports ---------------------------
-#quarto::quarto_render("report_how_to_use_denominators.qmd")
+quarto::quarto_render("report_how_to_use_denominators.qmd")
 
 
 # FUTURE STUFF ---------------------------

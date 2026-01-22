@@ -45,4 +45,4 @@ fxn_load_os_fxns <- function() {
 }
 
 # To use it, just run:
-# load_os_functions()
+# fxn_load_os_functions()
