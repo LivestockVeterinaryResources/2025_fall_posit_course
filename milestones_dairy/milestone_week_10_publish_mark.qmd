@@ -1,6 +1,5 @@
 ---
 title: "Week 10 Milestone Params"
-subtitle: "`r params$year` Report for `r params$herd`" 
 author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
 date: "`r Sys.Date()`"
 format:
@@ -18,6 +17,8 @@ execute:
   echo: false
 embed-resources: true
 
+params:
+  herd: "2108e"   # default value
 ---
 
 ```{r}
@@ -50,17 +51,22 @@ library(stringr)
 library(lubridate)
 
 
-# summary(animal_lactations)
+# summary(animals)
 # glimpse(animal_lactations)
 # unique(events_formatted$herd)
-# unique(events_formatted$event_type)
-# write_csv(events_formatted,"excel_excuses.csv")
+# unique(events_formatted_lt$status_lesion)
+# write_csv(events_formatted_lt,"excel_excuses.csv")
 ```
 
+# Report for 
+
+
+## Data Retrieval, steps and review
 
 ```{r}
 #| label: data_retrieve
 #| include: true
+#| echo: TRUE
 
 
 
@@ -72,7 +78,7 @@ events_formatted <- read_parquet(
 animals <- read_parquet(
   '../data/intermediate_files/animals.parquet')
 
-# Create Herd Column 
+# Create Herd Column and extract the herd based on position
 events_formatted <- events_formatted %>%
   mutate(herd = str_sub(id_animal_lact, 18, 22))
 
@@ -113,13 +119,26 @@ walk(file_paths, browseURL)
 
 ```
 
+
+## Data Organization Steps
+
+
 ```{r}
 #| label: data_organization
 #| include: TRUE
+#| echo: TRUE
 
 
-# Filter events_formatted for only LAME and TRIM
+# Filter 'events_formatted' for only LAME and TRIM to create 'events_formatted_lt'
 events_formatted_lt <- events_formatted[events_formatted$event %in% c("LAME", "TRIM"), ]
+
+# Code the lesions and diseases
+all_lesions <- c("dd", "footrot", 'wld', "sole_ulcer","injury", 
+                             "cork", "other", "hemorrhage",
+                             "sole_fracture", "toe_ulcer", "thin",
+                             "inf", "noninf", "toe", "axial", "lesion")
+
+diseases <- c("inf", "noninf", "lesion")
 
 # Apply the function to events_formatted_lt
 events_formatted_lt <- fxn_code_lesions(
@@ -218,10 +237,156 @@ events_formatted_lt <- events_formatted_lt %>%
     floordate_event = floor_date(date_event, "month")
   )
 
+
 ```
 
+## Removal Heat Mapping
 
-# Report for 
+```{r}
+#| label: Removal_heat_map
+#| include: TRUE
+#| echo: TRUE
+
+# Recode the status_lesion variable of 'NA'
+events_formatted_lt <- events_formatted_lt %>%
+  mutate(status_lesion = case_when(
+    status_lesion %in% c("Chronic", "New", "Repeat") ~ status_lesion,
+    TRUE ~ "Ctrl"
+  ))
+
+# Filter and prepare data with lesion relabel
+plot_data <- events_formatted_lt %>%
+  filter(lact_group_5 != "Heifer") %>%
+  # setting the herd to filter for the report
+  filter(herd == params$herd) %>%
+  filter(date_event >= (max(date_event, na.rm = TRUE) %m-% months(12))) %>%
+  mutate(
+    status_lesion_label = case_when(
+      status_lesion == "Chronic" ~ "Chronic Lesion",
+      status_lesion == "Ctrl"    ~ "No Lesion",
+      status_lesion == "New"     ~ "New Lesion",
+      status_lesion == "Repeat"  ~ "Repeat Lesion",
+      TRUE ~ "Unknown"
+    )
+  )
+
+
+# =========================================================================
+# 2. Summarize: % culled within 30 days + count
+# =========================================================================
+heat_data <- plot_data %>%
+  group_by(status_lesion_label, lact_group_5) %>%
+  summarise(
+    n = n(),
+    pct_culled_30 = mean(culled_30, na.rm = TRUE) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    # Remove heat mapping for Repeat Lesion
+    pct_culled_30 = ifelse(status_lesion_label == "Repeat Lesion", NA, pct_culled_30)
+  )
+
+# =========================================================================
+# 3. Build heat map
+# =========================================================================
+ggplot(
+  heat_data,
+  aes(
+    x = status_lesion_label,
+    y = lact_group_5,
+    fill = pct_culled_30
+  )
+) +
+  geom_tile(color = "black", alpha = 0.8) +
+
+  geom_text(
+    aes(label = paste0(
+      ifelse(is.na(pct_culled_30), "NA", round(pct_culled_30, 1)), 
+      "%\n(n=", n, ")"
+    )),
+    color = "black",
+    size = 4
+  ) +
+
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    name = "% Culled Within 30 Days",
+    na.value = "white"   # ensures Repeat Lesion tiles are blank
+  ) +
+
+  labs(
+    title = "% Culled - 30 Days by Lesion and Lactation Group",
+    x = "Lesion Status",
+    y = "Lactation Group"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  )
+
+# =========================================================================
+# 2. Summarize: % died within 30 days + count
+# =========================================================================
+heat_data <- plot_data %>%
+  group_by(status_lesion_label, lact_group_5) %>%
+  summarise(
+    n = n(),
+    pct_died_30 = mean(died_30, na.rm = TRUE) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    # Remove heat mapping for Repeat Lesion
+    pct_died_30 = ifelse(status_lesion_label == "Repeat Lesion", NA, pct_died_30)
+  )
+
+# =========================================================================
+# 3. Build heat map
+# =========================================================================
+ggplot(
+  heat_data,
+  aes(
+    x = status_lesion_label,
+    y = lact_group_5,
+    fill = pct_died_30
+  )
+) +
+  geom_tile(color = "black", alpha = 0.8) +
+
+  geom_text(
+    aes(label = paste0(
+      ifelse(is.na(pct_died_30), "NA", round(pct_died_30, 1)), 
+      "%\n(n=", n, ")"
+    )),
+    color = "black",
+    size = 4
+  ) +
+
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    name = "% Died Within 30 Days",
+    na.value = "white"   # ensures Repeat Lesion tiles are blank
+  ) +
+
+  labs(
+    title = "% Died - 30 Days by Lesion and Lactation Group",
+    x = "Lesion Status",
+    y = "Lactation Group",
+    caption = "This is not the full archive risk"
+  ) +
+
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 30, hjust = 1)
+  )
+
+
+```
+
 
 ## Objective
 
