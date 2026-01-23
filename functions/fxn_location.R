@@ -3,9 +3,12 @@ library(tidyverse)
 fxn_assign_location_event_default <- function(df){
   df%>%
     mutate(
-      location_event = source_file_path
-      #location_event = HERDID
+      location_event = case_when(
+        #use this as a template to customize the herdID
+        #(HERDID %in% XXXX)~'Example Herd', 
+        TRUE~HERDID
       )
+    )
 }
 
 
