@@ -53,9 +53,13 @@ library(lubridate)
 
 # summary(animals)
 # glimpse(animal_lactations)
-# unique(events_formatted$herd)
+# unique(events_formatted$event)
 # unique(events_formatted_lt$status_lesion)
-# write_csv(events_formatted_lt,"excel_excuses.csv")
+# write_csv(events_formatted_frsh,"excel_excuses.csv")
+# str(events_formatted_frsh) 
+# colnames(events_formatted_frsh)
+# colnames(animals)
+
 ```
 
 # Report for 
@@ -239,6 +243,67 @@ events_formatted_lt <- events_formatted_lt %>%
 
 
 ```
+## Create FRESH data
+
+```{r}
+#| label: Create FRESH data
+#| include: TRUE
+#| echo: TRUE
+
+# Create new FRESH data frame and ilter for FRESH events
+events_formatted_frsh <- events_formatted %>%
+  filter(event == "FRESH") %>%
+  
+  # Join removal dates
+  left_join(
+    animals %>% select(id_animal, date_left, date_sold, date_died),
+    by = "id_animal"
+  ) %>%
+  
+  # Add censor and removal information
+  mutate(
+    # Global censor date (computed once)
+    date_censor = max(date_event, na.rm = TRUE),
+
+    # Days to cull
+    days_to_cull = as.numeric(date_left - date_event),
+
+    # Days to censor if no cull
+    days_censor_cull = if_else(
+      is.na(days_to_cull),
+      as.numeric(date_censor - date_event),
+      days_to_cull
+    ),
+
+    # Ever culled?
+    culled_ever = if_else(is.na(days_to_cull), 0, 1),
+
+    # 30‑day outcomes
+    culled_30 = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
+    sold_30  = if_else(!is.na(days_to_cull) & days_to_cull <= 30 & !is.na(date_sold), 1, 0),
+    died_30  = if_else(!is.na(days_to_cull) & days_to_cull <= 30 & !is.na(date_died), 1, 0)
+  )
+
+# Drop is_last only if it exists
+if ("is_last" %in% names(events_formatted_frsh)) {
+  events_formatted_frsh <- events_formatted_frsh %>% select(-is_last)
+}
+
+
+```
+
+## Herd Demographic Tables
+
+```{r}
+#| label: Demographic tables
+#| include: TRUE
+#| echo: TRUE
+
+
+
+
+```
+
 
 ## Removal Heat Mapping
 
