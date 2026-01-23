@@ -2,8 +2,8 @@ library(tidyverse)
 
 fxn_assign_id_animal_default<-function(df){
   df%>%
-    mutate(id_animal = paste0(source_file_path, '_', ID, '_', BDAT), 
-           id_animal_lact = paste0(source_file_path, '_', ID, '_', BDAT, '_', LACT)
+    mutate(id_animal = paste0(HERDID, '_', ID, '_', BDAT), 
+           id_animal_lact = paste0(HERDID, '_', ID, '_', BDAT, '_', LACT)
     )
 }
 
