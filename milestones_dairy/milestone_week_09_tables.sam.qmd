@@ -1,0 +1,542 @@
+---
+title: "Week 9 Milestone Tables"
+author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
+date: "`r Sys.Date()`"
+format:
+  html:
+    page-layout: full
+    theme: flatly
+    df_print: paged
+    toc: true
+    toc-location: left
+    number-sections: false
+    code-fold: true
+execute:
+  message: false
+  warning: false
+  echo: false
+embed-resources: true
+params:
+  event:
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  broom,
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  survival,
+  survminer,
+  ggsurvfit,
+  flextable,
+  gtsummary,
+  marginaleffects,
+  scales,
+  zoo
+  )
+
+events_formatted <- read_parquet(
+  '../data/intermediate_files/events_formatted.parquet') 
+
+animals <- read_parquet(
+  '../data/intermediate_files/animals.parquet')
+
+deno_cal <- read_parquet(
+  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |> 
+  filter(deno_type == "lact_basic" & 
+           calendar_time_period_type == "year") |> 
+  select(-c(contains("dop"), day_of_phase_group))
+
+  
+# load GC's functions
+source('../functions/fxn_load_os_fxns.R')
+fxn_load_os_fxns()
+
+# Load Parnell CR fucntions from Github
+cr_url <- "https://raw.githubusercontent.com/ParnellPharma/ParnellFunctionsPublic/main/parnell_calculate_CR_master.R"
+source(cr_url)
+
+# create variables for inline code
+farm_name <- unique(events_formatted$location_event)
+
+date_max_pull <- max(events_formatted$date_event, na.rm = TRUE)
+date_min_pull <- date_max_pull - years(1)
+
+# pull solution data
+
+
+```
+
+
+# Report for `r farm_name[[1]]` and `r farm_name[[2]]`
+
+## Objective
+
+Run this chuck below. It will open the example report in your browser.
+You should delete this chunk in your final report
+
+```{r}
+#| label: open-html-r
+#| eval: false
+
+# 1. Define the file path
+file_path <- "images/milestone_09.htm"
+
+# 2. Open the browser
+browseURL(file_path)
+
+```
+
+
+The objective of this milestone is start working with multiple herds, create tables, use the denominator data and use external functions. The data and functions you need are loaded in the top chunk. This is in prep for milestone 10 where we will use parameters to run the same report for multiple herds.
+
+The steps for this milestone are as follows (code sections for these steps are below)
+
+1.  Re-Run **step0_master_processing.R**
+2.  Describe the herd size for the past 5 years for the 2 herds
+3.  Run the parnell CR function, by calling **fxn_create_CR_reports**
+    1.  More details about the function can be found [here](https://github.com/ParnellPharma/ParnellFunctionsPublic/blob/main/parnell_calculate_CR_master.R)
+4.  Run the **fxn_dz_status** as it relates to mastitis to determine if type early mastitis case influences conception risk.
+5.  Create tables from the inventory and both conception risk data frames.
+
+## Describe Herds
+
+-   Using the deno_cal dataframe recreate this table using the gt table skills you learned this week. You will probably need to look at the package website or use AI to get some of the details.
+
+-   Some gt function hints are:
+
+    -   groupname_col and rowname_col inside gt()
+
+    -   fmt_data
+
+    -   fmt_number
+
+    -   tab_style
+
+    -   cols_label
+
+    -   tab_spanner
+
+    -   tab_options
+
+```{r}
+#| label: describe-herds
+
+#basic overview 21083
+herd_desc0_2108e <- events_formatted %>%  
+  filter(date_fresh >= today() - years(1),
+         location_event == "Herd 2108e") %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh)) %>% 
+  summarize(
+    total_count = n(),
+    av_lact = mean(lact_number),
+    av_dim = mean(dim)
+  )
+
+#basic overview 2755f 
+herd_desc0_2755f <- events_formatted %>%  
+  filter(date_fresh >= today() - years(1),
+         location_event == "Herd 2755f") %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh)) %>% 
+  summarize(
+    total_count = n(),
+    av_lact = mean(lact_number),
+    av_dim = mean(dim)
+  )
+
+#basic overview total 
+herd_desc0 <- events_formatted %>%  
+  filter(date_fresh >= today() - years(1)) %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh)) %>% 
+  summarize(
+    total_count = n(),
+    av_lact = mean(lact_number),
+    av_dim = mean(dim)
+  )
+
+# events_formatted %>% 
+#   distinct(location_event)
+
+
+#herd stats this lactation - roughly 
+herd_desc1 <- events_formatted %>% 
+  filter(date_fresh >= today() - years(1)) %>% 
+  mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh),
+    dim_bin = cut(dim, breaks = seq(0, max(dim, na.rm = TRUE) + 60, by = 60),
+                  right = FALSE, 
+                  labels = paste(seq(0, max(dim, na.rm = TRUE), by = 60),
+                                 seq(59, max(dim, na.rm = TRUE) + 59, by = 60),
+                                 sep = "-"))) %>% 
+ group_by(lact_group_5, dim_bin, location_event) %>% 
+ summarize( 
+    lact_num  = n(), 
+    lact_perc = n() / 60353,
+    preg_perc = sum(event == "preg", na.rm = TRUE) / n(),
+    .groups = "drop"
+  ) %>% 
+  ungroup()
+
+
+#making denominators for herds 
+herd_summary_n <- events_formatted %>%
+  filter(date_event >= today() - years(5)) %>%
+  mutate(event_year = year(date_event)) %>%
+  
+  # First: count animals in each lact group within location & year
+  group_by(location_event, event_year, lact_group_repro) %>%
+  summarize(n = n(), .groups = "drop") %>%
+  
+  # Second: within each location & year, compute percent
+  group_by(location_event, event_year) %>%
+  mutate(
+    total_loc_year = sum(n),
+    pct_in_lact = n / total_loc_year
+  ) %>%
+  ungroup()
+
+
+
+# #stats for the last 5 years 
+# herd_by_year <- events_formatted %>%             # Keep only the last 5 years
+#   filter(date_event >= today() - years(5)) %>%      # Extract the year of each event
+#   mutate(event_year = year(date_event)) %>%
+#   mutate(dim = as.numeric(as.Date("2025-10-05") - date_fresh),
+#     dim_bin = cut(dim, breaks = seq(0, max(dim, na.rm = TRUE) + 60, by = 60),
+#                   right = FALSE, 
+#                   labels = paste(seq(0, max(dim, na.rm = TRUE), by = 60),
+#                                  seq(59, max(dim, na.rm = TRUE) + 59, by = 60),
+#                                  sep = "-"))) %>% 
+#   group_by(location_event, event_year, lact_group_repro) %>%
+#   mutate(total_in_lact = n()) %>% 
+#   ungroup() %>% 
+#   # Second: within each location & year, compute percent
+#   group_by(location_event, event_year) %>%
+#   mutate(
+#     total_in_year = n(),
+#     pct_in_lact = total_in_lact / total_in_year
+#   ) %>%
+#   ungroup() 
+# 
+# 
+# totals_df <-herd_by_year %>%               ##Checking that it works - it does
+#   count(event_year, location_event, lact_group_repro, total_in_year, total_in_lact)
+# 
+# 
+# herd_by_year_sum <- herd_by_year %>% 
+#    left_join(totals_df, by = c("location_event", "event_year", "lact_group_repro")) %>%
+#   group_by(location_event, event_year, lact_group_repro) %>%
+#   summarize(
+#     lact_num   = n(),
+#     preg_count = sum(event == "PREG", na.rm = TRUE),
+#     lact_dec   = lact_num / total_in_year,
+#     preg_perc  = preg_count / total_in_year,
+#     .groups = "drop"
+#   )
+
+
+##With GPT Fixes 
+herd_by_year <- events_formatted %>%
+  filter(date_event >= today() - years(5)) %>%
+  mutate(
+    event_year = year(date_event),
+    dim = as.numeric(as.Date("2025-10-05") - date_fresh),
+    dim_bin = cut(
+      dim,
+      breaks = seq(0, max(dim, na.rm = TRUE) + 60, by = 60),
+      right = FALSE,
+      labels = paste(seq(0, max(dim, na.rm = TRUE), by = 60),
+                     seq(59, max(dim, na.rm = TRUE) + 59, by = 60),
+                     sep = "-")
+    )
+  ) %>%
+  # total cows in lact group
+  group_by(location_event, event_year, lact_group_5) %>%
+  mutate(total_in_lact = n_distinct(id_animal)) %>%
+  ungroup() %>%
+  # total cows in location-year
+  group_by(location_event, event_year) %>%
+  mutate(total_in_year = n_distinct(id_animal)) %>%
+  ungroup()
+
+# Step 2: Summarize
+herd_by_year_sum <- herd_by_year %>%
+  group_by(location_event, event_year, lact_group_5) %>%
+  summarize(
+    lact_num   = n_distinct(id_animal),
+    preg_count = n_distinct(id_animal[event == "PREG"]),
+    lact_dec   = lact_num / first(total_in_year),   # denominator per location-year
+    preg_perc  = preg_count / first(total_in_year),
+    .groups = "drop"
+  ) %>%
+  arrange(location_event, event_year,  lact_group_5)
+
+
+herd_by_year_sum %>% 
+gt() %>% 
+  fmt_percent(columns = c(lact_dec, preg_perc), decimals = 0) %>% 
+  tab_header(title= "Herd Dynamics by Year, Lactation, and Herd") %>% 
+  cols_label(
+    lact_group_5 = "Lactation Group",
+    event_year = "Year",
+    location_event = "Herd",
+    lact_num     = "# in Lactation", 
+    preg_count   = "Number Pregnant",
+    lact_dec    = "Percent of Herd",
+    preg_perc    = "Percent Pregnant"
+  ) %>% 
+  cols_align(columns = c(lact_num, lact_dec, preg_perc, preg_count), align = "left") %>% 
+  tab_row_group(
+    group = "Herd 2108e",
+    rows = location_event == "Herd 2108e"
+  ) %>%
+  tab_row_group(
+    group = "Herd 2755f",
+    rows = location_event == "Herd 2755f"
+  ) %>% 
+  tab_style(
+    style = list(
+      cell_fill(color = "lightblue"),     # background color
+      cell_text(weight = "bold", color = "darkblue")  # text styling
+    ),
+    locations = cells_row_groups(groups = c("Herd 2108e", "Herd 2755f"))
+  ) 
+  
+  
+
+
+# events_formatted %>% 
+#   filter(lact_group == "Heifer",
+#          event %in% "PREG") %>% 
+#   group_by(location_event) %>% 
+# distinct(event,lact_group) %>% 
+#   ungroup()
+```
+
+```{r}
+herd_by_year_sum %>% 
+  ggplot(aes(x = event_year, y = lact_group_5)) + 
+  geom_tile(aes(fill= preg_perc), color = "white") +
+  geom_text(aes(label = scales::percent(preg_perc, accuracy = 1)), color = "black") +
+  scale_fill_gradient(low = "white", high = "steelblue", labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    x = "Year",
+    y = "Lactation Group",
+    fill = "Pregnancy %",
+    title= "Pregnancy Percentages by Year and Lactation"
+  ) +
+  theme_minimal() +
+  facet_wrap(~ location_event)
+
+
+```
+
+
+
+
+
+```{r}
+#| label: describe-herds-deno_cal
+# 
+
+deno_cal_sum <- deno_cal %>%  
+  group_by(location_lact_list) %>%  
+  mutate(
+    event_year = year(date_time_period_start),
+    group = case_when(
+    `Lactation Group` == "Heifer"      ~ "Heifer",
+    `Lactation Group`== "LACT > 0" ~ "Adult Cow",
+    TRUE ~ NA_character_  # just in case other values exist
+  ))
+      
+deno_cal_sum %>% 
+  select(c(group, event_year, ct_animal_time_periods, ct_animal_days_elig, ct_animals, ct_animal_lactations)) %>% 
+  gt() %>% 
+  cols_label(
+    group = "Group", 
+    event_year = " ", 
+    ct_animal_time_periods = "DAR Animals", 
+    ct_animal_days_elig = "Days at risk", 
+    ct_animals = "Animals", 
+    ct_animal_lactations = "Lactations"
+    ) %>% 
+ tab_spanner(
+    label = "Count of",
+    columns = c(ct_animal_time_periods, ct_animal_days_elig, ct_animals, ct_animal_lactations)  # all stats columns
+  ) %>%
+  cols_move_to_start(columns = c(event_year,group,ct_animal_days_elig,ct_animal_time_periods, ct_animal_lactations, ct_animals)) %>% 
+  fmt_number(columns = c(ct_animal_days_elig, ct_animal_time_periods, ct_animals, ct_animal_lactations), decimals = 0) %>% 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels(everything())
+  ) %>% 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_spanners(everything())
+  ) %>% 
+  tab_style(
+    style = cell_borders(
+      sides = "right",
+      color = "black",
+      weight = px(1.5)
+    ),
+    locations = cells_body(columns = vars(event_year))
+  ) %>% 
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_row_groups()
+  ) %>% 
+ opt_row_striping() %>%
+  tab_options(
+    row.striping.background_color = "#e6e6e6", # Custom hex color (light green)
+    row.striping.include_table_body = TRUE
+  )
+
+
+```
+
+
+## Conception Risk Tables
+
+Use the Parnell CR function to compare the conception risks between the 2 herds and recreate this table
+
+1.  The **fxn_create_CR_reports** function will work if you just pipe the events_formatted dataframe to it.
+2.  You will need define the grp_vars inside the function
+
+-   the last one should be Rstandard
+-   the table uses lact_group_basic as one of the variables to group the data
+
+3.  for the table use some of the same gt function you used in describing the herd sizes.
+
+-   additional functions to explore are:
+-   summary_rows
+-   cols_nanoplot \_ cols_merge_range
+
+```{r}
+#| label: create-cr_table
+
+events_formatted <- events_formatted %>% 
+  mutate(event_year = year(date_event),
+         location = location_event)
+  
+grp_vars <- c("lact_group_basic", "event_year", "event", "location_event", "Rstandard")
+
+
+events_formatted_1 <- events_formatted %>% 
+  fxn_create_CR_reports(grp_vars) 
+
+  events_formatted_2 <- events_formatted_1 %>% 
+  mutate(
+    group = case_when(
+      lact_group_basic == "Heifer"      ~ "Heifer",
+      lact_group_basic == "LACT > 0"    ~ "Adult Cow",
+      TRUE                              ~ NA_character_ 
+    ),
+    # Ensure 'preg' is a standard vector (strips formatting/attributes)
+    Preg = as.vector(Preg),
+    
+    # FIX: Use backticks ` ` to reference the column, not quotes ' '
+    `Not Bred Event` = as.vector(`Not Bred Event`), 
+    location_event = location_event
+  ) %>% 
+  group_by(event_year, lact_group_basic, location_event) %>% 
+    ungroup()
+  
+    CR_events <- events_formatted_2 %>%
+      filter( event_year %in% c("2018", "2019", "2020", "2021", "2022","2023","2024","2025")) %>% 
+  summarise(
+    total_count = sum(Total),     # Calculate counts using the corrected column names
+    preg_count = sum(preg, na.rm = TRUE), 
+    SPC = mean(SPC),
+    Risk = mean(pctConc),
+    not_bred_count = sum(`Not Bred Event`, na.rm = TRUE),  # Example using the column with spaces (ensure you use backticks!)
+    preg_perc = mean(preg != 0, na.rm = TRUE),      # Calculate Percentage
+    .groups = "drop"
+  ) %>% 
+  arrange(c(location_event, event_year, lact_group_basic)) %>% 
+      ungroup()
+  
+    
+CR_events %>% 
+  group_by(location_event) %>% 
+   select(-location_event) %>% 
+ 
+  gt() 
+
+  
+  
+```
+
+## Mastitis and Conception Risk
+
+Now recreate the table low were a variable was created to determine if a cow had mastitis in her first 60 DIM.
+
+1.  Once you create the new mastitis variable then run the **fxn_dz_status**
+
+    -   The gap should be 14 days
+
+    -   If the cow had mastitis in the first 60 DIM then she will be classified as
+
+        -   "New" if it was her first case
+
+        -   "Repeat" if it was a subsequent case within the gap
+
+        -   "Chronic" if she had at least 1 case after the gap
+
+2.  After running this function
+
+    -   assign cows that had mastitis \>60 DIM as "After"
+
+3.  Merge the data back with events formatted.
+
+    -   I have provided some code below to help you get started.
+
+    -   After the join, cows with no mastitis events should be coded as No Mast
+
+4.  After you merged the mastitis status variable back into events_formatted run the **fxn_create_CR_reports** function again to get the conception risk by mastitis status
+
+5.  Then create a table to show the results
+
+```{r}
+#| label: mast
+
+
+# code to help you
+# run this after you've run fxn_disease_status and before you join back to events_formatted
+
+# your code that runs fxn_dz_status should create this data frame
+select(id_animal_lact = id_animal, location_event, lact_number,
+         mast_60, life_times_mast_60,
+         status_mast_60) |>
+  group_by(location_event, id_animal_lact, lact_number, mast_60) |>
+  # get last mast mast_60 just using life time ignores mast_60
+  slice_max(order_by = life_times_mast_60, n = 1, with_ties = FALSE) |>
+  ungroup() |>
+  # now will only end up with 1 row/cow
+  group_by(location_event, id_animal_lact, lact_number) |>
+  slice_max(order_by = mast_60, n = 1, with_ties = FALSE) |>
+  ungroup()
+
+# then join back to events_formatted
+ 
+
+
+
+```
+
+# Extension
+
+For this week extension continue to create standard things you would want to report or incorporate modeling techniques to explore the data
+
+Ideas
+
+-   Try the code with other diseases like mastitis or culture information
