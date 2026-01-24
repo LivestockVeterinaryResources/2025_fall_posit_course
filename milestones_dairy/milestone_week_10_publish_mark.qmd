@@ -1,11 +1,16 @@
 ---
-title: "Week 10 Milestone Params"
-author: "<img src='images/logo.png' width='50' /> <br> Dairy Cow Foot Doc"
+title: |
+  </div>
+  <div style="text-align:center">
+    <img src="logo_b.png" width="350" /><br>
+    Milestone Week-8<br>
+    <span style="font-size:1em;">Mark Kirkpatrick DVM, MS</span>
 date: "`r Sys.Date()`"
 format:
   html:
     page-layout: full
-    theme: flatly
+    theme: cerulean
+    tabsets: true
     df_print: paged
     toc: true
     toc-location: left
@@ -16,9 +21,11 @@ execute:
   warning: false
   echo: false
 embed-resources: true
-
 params:
   herd: "2108e"   # default value
+editor: 
+  markdown: 
+    wrap: 72
 ---
 
 ```{r}
@@ -49,6 +56,9 @@ pacman::p_load(
 library(dplyr)
 library(stringr)
 library(lubridate)
+library(ggplot2)
+library(RColorBrewer)
+library(tidyr)
 
 
 # summary(animals)
@@ -57,15 +67,16 @@ library(lubridate)
 # unique(events_formatted_lt$status_lesion)
 # write_csv(events_formatted_frsh,"excel_excuses.csv")
 # str(events_formatted_frsh) 
-# colnames(events_formatted_frsh)
+# colnames(events_formatted_lt)
 # colnames(animals)
 
 ```
 
-# Report for 
+# Report for `r params$herd`
 
+## DATA Initial Loads
 
-## Data Retrieval, steps and review
+This is the section that performs the initial load of the Master data
 
 ```{r}
 #| label: data_retrieve
@@ -82,15 +93,23 @@ events_formatted <- read_parquet(
 animals <- read_parquet(
   '../data/intermediate_files/animals.parquet')
 
+deno_cal <- read_parquet(
+  '../data/intermediate_files/denominator_by_calendar_time_period.parquet') |>
+  filter(deno_type == "lact_basic" &
+           calendar_time_period_type == "year") |>
+  select(-c(contains("dop"), day_of_phase_group))
+
 # Create Herd Column and extract the herd based on position
 events_formatted <- events_formatted %>%
   mutate(herd = str_sub(id_animal_lact, 18, 22))
 
-  
 # load GC's functions
 source('../functions/fxn_load_os_fxns.R')
 fxn_load_os_fxns()
 
+# Load Parnell CR fucntions from Github
+cr_url <- "https://raw.githubusercontent.com/ParnellPharma/ParnellFunctionsPublic/main/parnell_calculate_CR_master.R"
+source(cr_url)
 
 # create variables for inline code
 farm_name <- unique(events_formatted$herd)
@@ -105,6 +124,7 @@ date_min_pull <- date_max_pull - years(1)
 
 
 ```
+
 
 
 ```{r}
@@ -123,9 +143,9 @@ walk(file_paths, browseURL)
 
 ```
 
+## DATA Lame and Trim Organization
 
-## Data Organization Steps
-
+LAME and TRIM events were isolated and coded in preparation of potential use.
 
 ```{r}
 #| label: data_organization
@@ -243,14 +263,17 @@ events_formatted_lt <- events_formatted_lt %>%
 
 
 ```
-## Create FRESH data
+
+## DATA FRESH Events
+
+A dedicated FRESH event data frame was created with the intent of describing the herd and understanding early removal patterns in the 1st 30 days of lactation.
 
 ```{r}
 #| label: Create FRESH data
 #| include: TRUE
 #| echo: TRUE
 
-# Create new FRESH data frame and ilter for FRESH events
+# Create new FRESH data frame and filter for FRESH events
 events_formatted_frsh <- events_formatted %>%
   filter(event == "FRESH") %>%
   
@@ -260,13 +283,16 @@ events_formatted_frsh <- events_formatted %>%
     by = "id_animal"
   ) %>%
   
-  # Add censor and removal information
+  # Add censor, removal info, and quarter fields
   mutate(
     # Global censor date (computed once)
     date_censor = max(date_event, na.rm = TRUE),
 
     # Days to cull
     days_to_cull = as.numeric(date_left - date_event),
+    
+    # Days in milk from censor date
+    days_in_milk = as.numeric(date_censor - date_event),
 
     # Days to censor if no cull
     days_censor_cull = if_else(
@@ -281,7 +307,17 @@ events_formatted_frsh <- events_formatted %>%
     # 30‑day outcomes
     culled_30 = if_else(!is.na(days_to_cull) & days_to_cull <= 30, 1, 0),
     sold_30  = if_else(!is.na(days_to_cull) & days_to_cull <= 30 & !is.na(date_sold), 1, 0),
-    died_30  = if_else(!is.na(days_to_cull) & days_to_cull <= 30 & !is.na(date_died), 1, 0)
+    died_30  = if_else(!is.na(days_to_cull) & days_to_cull <= 30 & !is.na(date_died), 1, 0),
+    
+    # Pregnant?
+    yn_preg = if_else(is.na(date_concieved), 0, 1),
+    
+    # Aborted?
+    yn_abort = if_else(is.na(date_aborted), 0, 1),
+
+    # Quarter fields based on date_fresh
+    quarter_floor = floor_date(date_fresh, "quarter"),
+    quarter_label = paste0(year(quarter_floor), " Q", quarter(quarter_floor))
   )
 
 # Drop is_last only if it exists
@@ -292,20 +328,427 @@ if ("is_last" %in% names(events_formatted_frsh)) {
 
 ```
 
-## Herd Demographic Tables
+::: {.panel-tabset}
+
+## ACTIVE HERD Tables
+
+There are the herd lactational group dynamics and proportions.  While averages aren't the best metric to determine change they are presented to indicate certain performance status.  This is the ACTIVE herd only.
 
 ```{r}
 #| label: Demographic tables
 #| include: TRUE
 #| echo: TRUE
 
+library(dplyr)
+library(scales)
+
+# Filter to active animals
+df_active <- events_formatted_frsh %>%
+  filter(status == "active") %>%
+  filter(herd == params$herd)
+
+# Summarize by lact_group_5
+tbl <- df_active %>%
+  group_by(lact_group_5) %>%
+  summarise(
+    count = n(),
+    prop = n() / nrow(df_active),
+    avg_dim = mean(days_in_milk, na.rm = TRUE),
+    avg_preg = mean(yn_preg, na.rm = TRUE),
+    avg_abort = mean(yn_abort, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+# Add total row
+tbl_total <- tbl %>%
+  summarise(
+    lact_group_5 = "Total",
+    count = sum(count),
+    prop = 1,
+    avg_dim = mean(avg_dim),
+    avg_preg = mean(avg_preg),
+    avg_abort = mean(avg_abort)
+  )
+
+tbl_final <- bind_rows(tbl, tbl_total)
+
+# Format columns
+tbl_final <- tbl_final %>%
+  mutate(
+    prop = percent(prop, accuracy = 1),
+    avg_dim = round(avg_dim, 0),
+    avg_preg = percent(avg_preg, accuracy = 1),
+    avg_abort = percent(avg_abort, accuracy = 1)
+  )
+
+# # Print with title
+# cat("\nActive Herd Demographics\n")
+# print(tbl_final)
+
+# Formatting with gt
+gt_tbl <- tbl_final %>%
+  gt() %>%
+  # Title with herd parameter
+  tab_header(
+    title = md(paste0("Active Herd Demographics — **", params$herd, "**"))
+  ) %>%
+  # Rename columns
+  cols_label(
+    lact_group_5 = "Lactation Groups",
+    count        = "count",
+    prop         = "Pct of Herd",
+    avg_dim      = "Avg DIM",
+    avg_preg     = "Pct Preg",
+    avg_abort    = "Pct Abort"
+  ) %>%
+  fmt_number(
+    columns = c(count, avg_dim),
+    decimals = 0
+  ) %>%
+  # Specify style of the table
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = lact_group_5 == "Total"
+    )
+  )
+
+gt_tbl
+
+
+```
+
+## Violin DIM Distribution
+
+Herd averages are somewhat meaningless without some estimation of distribution.  A violin graphic was employed to examine differences.  A "Jitter" scatter plot was attempted but actually clouded the interpretation.
+
+```{r}
+#| label: Violin dim distribution
+#| include: TRUE
+#| echo: TRUE
+
+# Filter data
+df_active <- events_formatted_frsh %>%
+  filter(status == "active") %>%
+  filter(herd == params$herd)
+
+# Build violin plot with axis control
+ggplot(df_active, aes(x = lact_group_5, y = days_in_milk, fill = lact_group_5)) +
+  geom_violin(trim = FALSE, alpha = 0.8) +
+  geom_boxplot(width = 0.15, outlier.shape = NA, alpha = 0.6) +
+  scale_fill_brewer(palette = "RdYlBu") +
+  scale_y_continuous(
+    limits = c(0, 500),      # <-- set upper/lower limits here
+    breaks = seq(0, 500, 50) # <-- set axis divisions here
+  ) +
+  coord_flip() +
+  labs(
+    title = paste0("Days in Milk Distribution by Lactation Group — ", params$herd),
+    x = "Lactation Group",
+    y = "Days in Milk"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold")
+  )
+
+
+
+```
+
+## FRESH Cohort Removal
+
+The 1st 21-30 days of lactation is a crucial period for dairy cattle.  This section monitors potential "lethality" risk by monitoring the DIED proportion within 30 days of FRESH.  Overall removal risk (sold and died) is monitored by the proportion culled.
+
+```{r}
+#| label: Fresh Removal
+#| include: TRUE
+#| echo: TRUE
+
+
+# =========================================================================
+# 1. Filter and prepare data
+# =========================================================================
+plot_data <- events_formatted_frsh %>%
+  filter(herd == params$herd) %>%
+  filter(date_fresh > as.Date("2023-12-31")) %>%
+  arrange(quarter_floor)   # ensures calendar order for x-axis
+
+
+# =========================================================================
+# 2. Summarize: % culled within 30 days + count
+# =========================================================================
+heat_data <- plot_data %>%
+  group_by(quarter_label, lact_group_5) %>%
+  summarise(
+    n = n(),
+    pct_culled_30 = mean(culled_30, na.rm = TRUE) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    pct_culled_30 = ifelse(quarter_label == "2025 Q4", NA, pct_culled_30)
+  )
+
+# =========================================================================
+# 3. Build heat map
+# =========================================================================
+ggplot(
+  heat_data,
+  aes(
+    x = quarter_label,
+    y = lact_group_5,
+    fill = pct_culled_30
+  )
+) +
+  geom_tile(color = "black", alpha = 0.8) +
+
+  geom_text(
+    aes(label = paste0(
+      round(pct_culled_30, 1), "%\n(n=", n, ")"
+    )),
+    color = "black",
+    size = 3
+  ) +
+
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    name = "% Culled Within 30 Days of Fresh",
+    na.value = "white"
+  ) +
+  
+  labs(
+  title = "% Culled within 30 Days Fresh",
+  x = "Quarter",
+  y = "Lactation Group",
+  caption = paste0("Fresh Cohort, ", params$herd)
+) +
+
+theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(face = "bold", hjust = 0.5),
+  axis.text.x = element_text(angle = 30, hjust = 1),
+  axis.title.x = element_text(size = 12),   # adjust x‑axis label size
+  axis.title.y = element_text(size = 12),    # adjust y‑axis label size
+
+  # Legend formatting for horizontal bar
+  legend.position = "bottom",
+  legend.key.width = unit(2, "cm"),
+  legend.key.height = unit(0.3, "cm"),
+  legend.title = element_text(size = 9),
+  legend.text = element_text(size = 8)
+) +
+guides(
+  fill = guide_colorbar(
+    direction = "horizontal",
+    title.position = "top"
+  )
+)
+
+
+# =========================================================================
+# 4. Summarize: % died within 30 days + count
+# =========================================================================
+heat_data <- plot_data %>%
+  group_by(quarter_label, lact_group_5) %>%
+  summarise(
+    n = n(),
+    pct_died_30 = mean(died_30, na.rm = TRUE) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    pct_died_30 = ifelse(quarter_label == "2025 Q4", NA, pct_died_30)
+  )
+
+# =========================================================================
+# 5. Build heat map
+# =========================================================================
+ggplot(
+  heat_data,
+  aes(
+    x = quarter_label,
+    y = lact_group_5,
+    fill = pct_died_30
+  )
+) +
+  geom_tile(color = "black", alpha = 0.8) +
+
+  geom_text(
+    aes(label = paste0(
+      round(pct_died_30, 1), "%\n(n=", n, ")"
+    )),
+    color = "black",
+    size = 3
+  ) +
+
+  scale_fill_distiller(
+    palette = "YlOrRd",
+    direction = 1,
+    name = "% Died Within 30 Days of Fresh",
+    na.value = "white"
+  ) +
+  
+  labs(
+  title = "% Died within 30 Days Fresh",
+  x = "Quarter",
+  y = "Lactation Group",
+  caption = paste0("Fresh Cohort, ", params$herd)
+  ) +
+  
+theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(face = "bold", hjust = 0.5),
+  axis.text.x = element_text(angle = 30, hjust = 1),
+  axis.title.x = element_text(size = 12),   # adjust x‑axis label size
+  axis.title.y = element_text(size = 12),    # adjust y‑axis label size
+
+  # Legend formatting for horizontal bar
+  legend.position = "bottom",
+  legend.key.width = unit(2, "cm"),
+  legend.key.height = unit(0.3, "cm"),
+  legend.title = element_text(size = 9),
+  legend.text = element_text(size = 8)
+) +
+guides(
+  fill = guide_colorbar(
+    direction = "horizontal",
+    title.position = "top"
+  )
+)
+
+
+```
+:::
+
+::: {.panel-tabset}
+
+## HOOF Lesions Stacked
+
+```{r}
+#| label: Hoof Stacked Lesions
+#| include: TRUE
+#| echo: TRUE
+
+
+# All lesion columns
+lesion_cols <- c(
+  "trimonly", "dd", "footrot", "wld", "sole_ulcer", "injury", "cork",
+  "other", "hemorrhage", "sole_fracture", "toe_ulcer", "thin",
+  "inf", "noninf", "toe", "axial", "lesion"
+)
+
+# Filter the dataset
+df_filtered <- events_formatted_lt %>%
+  filter(lact_group != "Heifer") %>%
+  filter(herd == params$herd) %>%
+  filter(date_event > as.Date("2024-07-01")) %>%
+  filter(trimonly == 0)
+
+# Pivot longer (keep ALL lesion types)
+df_long <- df_filtered %>%
+  pivot_longer(
+    cols = all_of(lesion_cols),
+    names_to = "lesion_type",
+    values_to = "present"
+  ) %>%
+  filter(present == 1)   # keep only lesions that occurred
+
+# Plot, but EXCLUDE lesion, inf, noninf
+df_long %>%
+  filter(!lesion_type %in% c("lesion", "inf", "noninf")) %>%
+  ggplot(aes(x = floordate_event, fill = lesion_type)) +
+  geom_bar(color = "black") +
+  labs(
+    x = "Month/Year",
+    y = "Lesion Count",
+    title = paste0("Lesion Types by Month/Year — ", params$herd),
+    caption = "Counts of All Non-Trim Lesions Over Time"
+  ) +
+  scale_y_continuous(
+    limits = c(0, NA),
+    breaks = seq(0, 600, by = 50),
+    labels = seq(0, 600, by = 50)
+  ) +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  ) +
+  scale_fill_brewer(palette = "YlGnBu")
+
+
+
+```
+
+## HOOF INF NONINF
+
+```{r}
+#| label: INF v NONINF
+#| include: TRUE
+#| echo: TRUE
+
+
+# 1. Summarize counts for "inf" and "noninf" from df_long
+lesion_summary <- df_long %>%
+  filter(lesion_type %in% c("inf", "noninf")) %>%
+  group_by(lact_group_5, lesion_type) %>%
+  summarise(total = n(), .groups = "drop") %>%
+  group_by(lact_group_5) %>%
+  mutate(percent = total / sum(total) * 100)
+
+# 2. Recode lesion labels
+lesion_summary <- lesion_summary %>%
+  mutate(lesion_type = recode(lesion_type,
+                              "inf" = "Infectious",
+                              "noninf" = "Non-Infectious"))
+
+# 3. Recode lact_group_5 from "LACT X" to "LGRP X"
+lesion_summary <- lesion_summary %>%
+  mutate(
+    lact_group_5 = recode(
+      lact_group_5,
+      "LACT 1" = "LGRP 1",
+      "LACT 2" = "LGRP 2",
+      "LACT 3" = "LGRP 3",
+      "LACT 4" = "LGRP 4",
+      "LACT 5+" = "LGRP 5+"
+    )
+  )
+
+# 4. Order lactation groups
+lact_order <- c("LGRP 1", "LGRP 2", "LGRP 3", "LGRP 4", "LGRP 5+")
+lesion_summary <- lesion_summary %>%
+  mutate(lact_group_5 = factor(lact_group_5, levels = lact_order))
+
+# 5. Horizontal 100% stacked bar chart
+ggplot(lesion_summary, aes(x = lact_group_5, y = percent, fill = lesion_type)) +
+  geom_col(color = "black") +
+  coord_flip() +
+  scale_fill_manual(values = c("Infectious" = "red",
+                               "Non-Infectious" = "grey40")) +
+  geom_text(aes(label = paste0(round(percent, 1), "%")),
+            position = position_stack(vjust = 0.5),
+            color = "white",
+            size = 4) +
+  labs(
+    title = paste0("Infectious vs Non-Infectious by Lactation Group — ", params$herd),
+    caption = "Filtered for non-trim lesions only",
+    x = "Lactation Group",
+    y = "Percent",
+    fill = "Lesion Type"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 10),
+    plot.title = element_text(hjust = 0.5)
+  )
 
 
 
 ```
 
 
-## Removal Heat Mapping
+## FOOT Lesion Removal Heat Mapping
 
 ```{r}
 #| label: Removal_heat_map
@@ -452,56 +895,4 @@ ggplot(
 
 ```
 
-
-## Objective
-
-The objective of this milestone is to run a report over multiple herds
-and years. Feel free to use existing code from previous milestones to
-minimize the time spend creating new code. Try to include some in line R
-code in the text that changes based on the herd you are working with.
-
-The steps for this milestone are as follows (code sections for these
-steps are below)
-
-1.  Re-Run **step0_master_processing.R** if you did not do it last week
-    to give you at least 2 herds to run a report on.
-
-2.  I did not load any github functions automatically so if you want to
-    call the functions we used previously you will need to load these.
-
-3.  Set *params* in the yaml to include herd and year.
-
-4.  Insert some tables and graphs from previous milestones into this
-    document using tabs/columns or whatever layout you prefer. The data
-    in these tables/graphs should be for each herd and for each year.
-
-5.  Once you have a completed report for one herd and year you can use
-    quarto to render reports for multiple herds/years by using the file
-    ***milestone_10_render.R*** in the main directory (same one as step 0)  
-
-    -   If you are using your own data adjust the herd names and years
-        in the code of that document.
-        -  You can also just run the report for 1 year by setting params to 1 year.
-
-# Conception Risk Comparison
-
-This herd of .... cows had a conception risk of ....
- in heifers of in ..... Compared to
-lactating cows this heifer CR was .... than the highest
-conception risk ....  in ....
-
-# Tables
-
-
-# Graphs
-
-
-# Extension
-
-For this week extension continue to create standard things you would
-want to report or incorporate modeling techniques to explore the data
-
-Ideas
-
--   Change the params to change the report by something other than herd or year.
--   Finalize your report that you would use on a routine basis in your practice.
+:::
