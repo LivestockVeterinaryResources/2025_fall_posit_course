@@ -111,7 +111,7 @@ events <- events|>
        event = str_replace_na(Event, 'BLANK_UNKNOWN'))|>
   
   ##add standard event types-----------------
-  fxn_assign_event_type_default()|>
+  fxn_assign_event_type()|>
   ##add event location --------------
   fxn_add_location_event()|>
   ##parse remarks and protocols-----------------
