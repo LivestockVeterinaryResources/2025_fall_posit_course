@@ -21,65 +21,69 @@ functions
 
 ------------------------------------------------------------------------
 
-This process is made to spend as little time as possible pulling data.  
-Therefore we will pull very granular data for all animals, and then filter
-out what we don't need later
+FIRST - Pull the data and save in the **event_files folder**
 
 -   We need the following items from Dairy Comp along with the columns
-    always generated with an events2 command in DC305
-    "HERDID" "ID" "PEN" "REG"
+    always generated with an events2 command in DC305 "ID" "PEN" "REG"
     "EID" "CBRD"\
     "BDAT" "EDAT" "LACT" "RC" "HDAT"\
     "FDAT" "CDAT" "DDAT" "PODAT" "ABDAT"\
     "VDAT" "ARDAT" "Event" "DIM" "Date"\
     "Remark" "R" "T" "B" "Protocols" "Technician"
 
-FIRST - Pull events from dairy comp using one option from the code below. 
-Save the resulting csv file in the folder named **event_files***
+-   Pull events from dairy comp using one option from the code below.
 
-    -   Option 1 Pull 5 years in one file: EVENTS\\2S2000CHN #1 #2 #4 #5
+    -   Option 1 Pull 5 years in one file: EVENTS\\2S2000CHNY #1 #2 #4 #5
         #6 #11 #12 #13 #15 #28 #29 #30 #31 #32 #38 #40 #43
 
     -   Option 2 pull smaller time frames using "days back" starting
         with "S""days back" and ending with "L""days back":
         EVENTS\\2S99L0CHNY #1 #2 #4 #5 #6 #11 #12 #13 #15 #28 #29 #30 #31
         #32 #38 #40 #43
-        
-NEXT - if you want to pull heifer data, pull the data and save in
-the **event_files_heifer** folder
 
-    -   Option 3 pull heifer data: EVENTS\\2S2000CHNY #1 #2 #4 #5
-        #6 #11 #12 #13 #15 #28 #29 #30 #31 #32 #38 #40 #43
-        
+    -   Option 3 automate the pull from a Google drive location.
+
+        -   For this place the files in a Google drive location and
+            ensure you change the drive url in the files below if using
+            your own drive.
+
+        -   Example Google Drive scripts
+
+            -   "step00_get_data_from_google_drive.R",
+
+            -   or for example data use the R script named
+                "step00_get_example_data_from_google_drive.R" to
+                download example farms
 
 NEXT - if you want to look at production data, pull the data and save in
-the **milk_files*** folder
+the **milk_files folder**
 
-    -   EVENTS #1 #11 #29 #6 #13\\4S2000H
+-   EVENTS #1 #11 #29 #6 #13\\4S2000H
 
 NEXT - Open the file names "step0_MasterProcessing.R" in Rstudio. Check
 to make sure
 
--   that all farm specific options are set up correctly.
+-   that all farm specific functions are set up correctly.
+
+-   If you are pulling data from Google Drive make sure the above files
+    are changed to your url.
 
 -   Set milk import function to TRUE if pulled milk data
 
--   Set heifer import function to TRUE if pulled heifer data
-
-
 LAST - Run step0_MasterProcessing.R
 
-FINALLY - Use the files in intermediate files to create reports.  
-You can view example reports in the reports folder
+FINALLY - View or create report files in the **reports** folder.
+Standard reports created include
 
--   animals.parquet - each row is a unique animal
+-   data_dictionary.html to show info about files and variables created
 
--   animal_lactations.parquet - each row is a unique animal lactation
+-   explore_event_types.html to do Quality control on how events are
+    processed. If events aren't in categories you expect they can be
+    manually coded to be in correct categories
 
--   events.parquet - each row is an event (animal, date, event, descriptive variables)
+-   2 denominator html files to show denominators for the herd
 
 -   explore_lame.html as an example report.
-
 
 ------------------------------------------------------------------------
 
