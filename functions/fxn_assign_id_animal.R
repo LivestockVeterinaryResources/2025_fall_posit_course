@@ -1,19 +1,15 @@
 library(tidyverse)
 
-if (get_EXAMPLE_data_from_google_drive == TRUE){
-
-fxn_assign_id_animal<-function(df){
+fxn_assign_id_animal_default<-function(df){
   df%>%
-    mutate(id_animal = paste0(HERDID, '_', ID, '_', BDAT), 
-           id_animal_lact = paste0(HERDID, '_', ID, '_', BDAT, '_', LACT)
+    mutate(id_animal = paste0(source_file_path, '_', ID, '_', BDAT), 
+           id_animal_lact = paste0(source_file_path, '_', ID, '_', BDAT, '_', LACT)
     )
-   }
-}else{
+}
 
-fxn_assign_id_animal<-function(df){
+fxn_assign_id_animal_parnell<-function(df){
   df%>%
     mutate(id_animal = paste0(str_sub(source_file_path, 18, 47), '_', ID, '_', BDAT), 
            id_animal_lact = paste0(str_sub(source_file_path, 18, 47), '_', ID, '_', BDAT, '_', LACT)
     )
-}
 }

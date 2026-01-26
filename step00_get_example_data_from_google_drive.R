@@ -6,19 +6,15 @@ library(glue)
 
 drive_deauth() # this disables authentication notifications for a publicly shared folder
 
-parnell_example_herd <- c( 
-                           "Example Herd 2",
-                           
-                           "Example Herd 3",
-                           
-                           "Example Herd 1",
-                           "Example Herd 4",
-                           "Example Herd 5",
-                           "Example Herd 6",
-                           "Example Herd 7",
-                           "Example Herd 8" )
-
-set_herds_to_download <- parnell_example_herd[0:get_EXAMPLE_herds]
+set_herds_to_download <- c( # "Example Herd 1",
+  "Example Herd 2",
+  "Example Herd 3" # ,
+  # "Example Herd 4"#,
+  # "Example Herd 5"#,
+  # "Example Herd 6"#,
+  # "Example Herd 7",
+  # "Example Herd 8"
+)
 
 
 # --- 1. access the drive ---
