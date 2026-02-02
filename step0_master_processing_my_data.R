@@ -185,10 +185,10 @@ quarto::quarto_render("report_explore_event_types.qmd")
 quarto::quarto_render("report_data_dictionary.qmd")
 
 ## Gerard's lameness report ---------------------------
-quarto::quarto_render("report_explore_lame.qmd")
+#quarto::quarto_render("report_explore_lame.qmd")
 
 ## Example reports ---------------------------
-quarto::quarto_render("report_how_to_use_denominators.qmd")
+#quarto::quarto_render("report_how_to_use_denominators.qmd")
 
 
 # FUTURE STUFF ---------------------------

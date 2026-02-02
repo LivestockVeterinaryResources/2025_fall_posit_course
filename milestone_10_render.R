@@ -9,7 +9,7 @@ library(janitor)
 
 # 1. Define your inputs
 years <- c(2024, 2025)
-farms <- c("Herd 2108e", "Herd 2755f")
+farms <- c("MMW Dairy", "MV Dairy")
 
 # 2. Create a "Job Table"
 # This ensures every year is paired with every farm automatically
@@ -37,11 +37,11 @@ pwalk(render_jobs, function(year, farm) {
 
 # alternative version if you want to render only for a single year and but multiple farms
 
-walk(farms, 
-     \(x) quarto::quarto_render(
-       input = "milestones_dairy/milestone_week_10_publish.qmd",
-       output_format = "html",
-       execute_params = list(herd = x),
-      output_file = str_glue("farm_report_{x}.html")
-     )
-)
+# walk(farms, 
+#      \(x) quarto::quarto_render(
+#        input = "milestones_dairy/milestone_week_10_publish.qmd",
+#        output_format = "html",
+#        execute_params = list(herd = x),
+#       output_file = str_glue("farm_report_{x}.html")
+#      )
+# )
