@@ -67,7 +67,8 @@ events2 <- events|>
        )|>
   ##parse numbers -------------------
   mutate(dim_event = parse_number(DIM), 
-       lact_number = parse_number(LACT))|>
+       lact_number = parse_number(LACT), 
+       pen_number = parse_number(PEN))|>
   arrange(id_animal, date_event)|>
   ## de deuplicates rows (or not) according to setting--------------
   fxn_de_duplicate()|>
@@ -172,7 +173,7 @@ write_parquet(events2%>%
                        date_enrolled, qc_diff_bdat_edat,
                        id_animal_lact, date_fresh, date_archived, status,
                        lact_number, lact_group_basic, lact_group, lact_group_repro, lact_group_5,
-                       event_type, event, remark, contains('remark'), protocols, contains('protocols'), 
+                       pen_number, event_type, event, remark, contains('remark'), protocols, contains('protocols'), 
                        technician, date_event, dim_event, location_event, locate_lesion, 
                        R, `T`, B, date_heat, date_concieved, date_aborted, date_repro_dx,
                        contains('custom_')), 
