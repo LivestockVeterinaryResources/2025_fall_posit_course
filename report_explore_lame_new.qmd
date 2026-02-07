@@ -16,13 +16,30 @@ params:
 ---
 
 ```{r}
-library(tidyverse)
-library(arrow)
-library(dtplyr)
-library(DT)
-library(gt)
-library(flextable)
-library(gtsummary)
+#| label: setup
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(
+  broom,
+  tidyverse,
+  dtplyr,
+  gt,
+  arrow,
+  rmarkdown,
+  lubridate,
+  quarto, 
+  arrow,
+  survival,
+  survminer,
+  ggsurvfit,
+  flextable,
+  gtsummary,
+  marginaleffects,
+  scales,
+  zoo
+  )
+
+
 
 source('functions/fxn_dt_base.R') #functions to parse remarks and protocols
 
@@ -338,12 +355,13 @@ plot_lollipop <- function(.data,
 
 ```
 
-# Lesion Incidence
+# Lesion Incidence for `r params$year`
+
 ::: panel-tabset
 ## Summary Categories
 
 ```{r}
-#| label: graph individual lesions
+#| label: graph all lesions
 
 les_graph <- base_lesion_data |> 
   filter(lesion_type %in% c("lesion", "inf", "noninf", "other")
@@ -395,440 +413,189 @@ les_graph
 
 :::
 
-```{r}
-
-# this counts overall lesions 
-# count events
-# 
-# To then count all occurences diagnoses/events
-
-last_year_floor <- floor_date(pull_date,"year")
-
-lame_sum_all <- lame_events2 |> 
-  filter(life_times_lame > 0) |> 
-  select(-trimonly) |> 
-  group_by(farm, floordate_year, lact_group_5) |> 
-  summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE)),
-            .groups = "drop") |> 
-  # Add totals by floordate_year
-  bind_rows(
-    lame_events2 |> 
-      filter(life_times_lame > 0) |> 
-      select(-trimonly) |> 
-      group_by(farm, floordate_year) |> 
-      summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE))) |> 
-      mutate(lact_group_5 = "LACT > 0")
-  ) |>
-  # filter out just last year
-  filter(floordate_year == last_year_floor)  |> 
-  pivot_longer(cols = all_of(all_lesions),
-               names_to = "lesion_type",
-               values_to = "count_all")
-
-
-```
-
-```{r}
-
-# count incident events
-
-# To then count first lesion occurrences.  Bases on 1st classification of any lesion in a cow's life. Could do by 1st for each lesion but harder to attribute cause to RF if skin/corium is damaged by lesion or compensation. For example if a cow gets DD and then an ulcer is the ulcer due to excessive standing time due to management or due to shifting weight to other leg due DD?
-
-# this counts first lesions 
-
-lame_sum_first <- lame_events2 |> 
-  filter(life_times_lame == 1) |> 
-  select(-trimonly) |> 
-  # count lesions
-  group_by(farm, floordate_year, lact_group_5)%>%
-  summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE)))%>%
-  ungroup() |>
-    # Add totals by floordate_year
-  bind_rows(
-    lame_events2 |> 
-      filter(life_times_lame == 1 ) |> 
-      select(-trimonly) |> 
-      group_by(farm, floordate_year) |> 
-      summarize(across(all_of(all_lesions), \(x) sum(x, na.rm = TRUE))) |> 
-      mutate(lact_group_5 = "LACT > 0")
-  ) |>
-  # filter out just 2024
-  filter(floordate_year == last_year_floor) |> 
-  pivot_longer(cols = all_of(all_lesions),
-               names_to = "lesion_type",
-               values_to = "count_1st")
-
-```
-
-```{r}
-
-# merge sum tables
-
-lesion_table <- lame_sum_all |> 
-  left_join(lame_sum_first, 
-            by = join_by(farm, floordate_year, lact_group_5, lesion_type))
-
-```
-
-```{r}
-
-# merge with denominators
-
-# To turn this into a lacational risk and account for # cows we need to merge this with the denominators we calculated earlier
-risk <- lesion_table |> 
-    # filter out just 2024
-  filter(floordate_year == last_year_floor & lact_group_5 != "Heifer") |> 
-  left_join(herd_deno, by = join_by(farm, lact_group_5 == 'Lactation Group')) |> 
-  mutate(risk_first = round(count_1st/count_lactations*100,1),
-         risk_all = round(count_all/count_lactations * 100, 1),
-         risk_first = if_else(is.na(risk_first), 0, risk_first),
-         risk_all = if_else(is.na(risk_all), 0, risk_all)
-         ) |> 
-  select(-c(floordate_year))
-
-
-```
-
-## Table of lesion incidence
-
-```{r}
-
-lesion_labels <- c(
-"Any Lesion" = "lesion",
-  "Digital Dermatitis" = "dd",
-  "Sole Ulcer" = "sole_ulcer",
-  "White Line" = "wld",
-  "Other" = "other",
-  "Footrot" = "footrot",
-  "Injury" = "injury",
-  "Infectious" = "inf",
-  "Non-Infectious" = "noninf",
-  "Any Toe Lesion" = "toe",
-  "Thin Sole" = "thin",
-  "Toe Ulcer" = "toe_ulcer",
-  "Hemorrhage" = "hemorrhage"
-)
-
-risk_gt <- risk |> 
-  filter(lact_group_5 == "LACT > 0") |> 
-  filter(risk_all>0) |> 
-  select(farm, lesion_type, risk_first, risk_all) |> 
-  arrange(desc(risk_first)) |> 
-  mutate(lesion_type = as_factor(lesion_type)) |> 
-  mutate(
-    lesion_type = fct_recode(lesion_type, !!!lesion_labels)) |> 
-  gt(groupname_col = "farm",
-     row_group_as_column = TRUE) |> 
-  tab_spanner(label = md("**% Risk for Case Type**"), columns = starts_with("risk")) |> 
-  cols_label(lesion_type = "Lesion",
-             risk_first = "1{{^st}}",
-             risk_all = "All") |> 
-    # tab_style(
-    # style = cell_text(weight = "bold"),
-    # locations = cells_column_spanners(everything())
-    # ) |> 
-  cols_align("right") |> 
-  tab_footnote(footnote = "1st lifetime occurence of any lesion not of a particular lesion",
-               locations = cells_column_labels(columns = risk_first)) |>
-    tab_style(
-    style = cell_text(align = "center", weight = "bold"),
-    locations = cells_column_labels(everything())
-    ) |> 
-  cols_align(align = "center", columns = c(risk_first, risk_all))
-
-
-risk_gt
-
-```
-
-```{r}
-# code for graph (a dynamic function)
-
-region_les_graph <- function(.data, 
-                             facet_col = farm,
-                             facet_row = time_period,
-                             plot_var = lesion_type,
-                             lesions = all_lesions,
-                             years,
-                             farms){
-  # filter data
-  df <- .data |> 
-    filter(risk_all != 0) %>% 
-    filter(time_period %in% years) |> 
-    filter(lesion_type %in% lesions & farm %in% farms)
-  
-  # calculate min/max for graphs
-  min <- df |> 
-  mutate(min = min(risk_first, na.rm = TRUE)
-         ) |> 
-  slice_head() |>
-  mutate((min = floor(min))) |> 
-  select(min) 
-
-min_limit <- min$min[1] 
-
-max <- df |> 
-  mutate(max = max(risk_all, na.rm = TRUE) 
-         )|> 
-  slice_head() |> 
-  select(max) |> 
-  mutate(max =ceiling(max)
-  )
-# extract max value
-max_limit <- max$max[1]  
-
-break_graph <- case_when(max_limit < 6 ~ 1,
-                         max_limit > 6 & max_limit <11 ~ 2,
-                         max_limit > 10 & max_limit < 51 ~ 5,
-                         max_limit > 50 & max_limit < 101 ~ 10,
-                         max_limit >101 ~ 20)
-
-#graph
-les_graph <- df %>%
-#  group_by(farm, year) %>% 
-  mutate(x_var = fct_reorder({{plot_var}}, risk_all)) %>% 
-  ggplot() +
-  geom_segment(aes(x = x_var, xend = x_var, 
-                   y = risk_all, yend = risk_first, 
-                   color = "Repeats"), 
-               linewidth = 2) +
-  geom_point(aes(x = x_var, y = risk_all, color = "All"), size = 6.5) +
-  geom_text(aes(x_var, risk_all, label = round(risk_all, digits = 1)), 
-            nudge_x = +.01, 
-            color = "white", size = 2.25,
-            show.legend = FALSE) +
-  geom_point(aes(x = x_var, y = risk_first, color = "1st"), size = 6.5) +
-  geom_text(aes(x_var, risk_first, label = round(risk_first, digits = 1)), 
-            nudge_x = +.01,  
-            color = "white", size = 2.25) +
-  coord_flip() +
-  theme_minimal() +
-  xlab("") +
-  ylab("# of cases per 100 cows") + 
-  scale_y_continuous(limits = c(0, max_limit),
-                     breaks = seq(0, max_limit, by = break_graph),
-                     expand = c(0.02, 0.02)) +
-  scale_x_discrete(expand = c(0.05, 0.05),
-                   labels = lesion_labels) +
-  scale_color_manual(name = "# of Cases", 
-                     values = c("Repeats" = "#FDE725FF", #viridis colours
-                                "All" = "#440154FF", 
-                                "1st" = "#7ad151ff"),
-                     labels = c("1st", "Repeats", "All"),
-                     breaks = c("1st", "Repeats", "All")
-  )+
-  guides(color = guide_legend(override.aes = list(shape = c(19, NA, 19),
-                                                  linetype = c(1, 1, 1)
-  ),
-  label.position = "bottom",
-  title.position = "top",
-  title.hjust = 0.5)
-  )+
-  theme(legend.position = "top")+
-  facet_grid(cols = vars ({{facet_col}}), 
-             rows = vars({{facet_row}}),
-             labeller = labeller(lesion_type = lesion_labels))+
-  theme(strip.text = element_text(face = "bold"))
-}
-```
-
-## Graphical Lesion Distribution
-
-```{r}
-#| label: fig_any
-#| fig-cap: "**A lot of repeat lesions**"
-#| fig-cap-location: top
-#| fig-height: 8
-
-
-farms <- farm_name
-years <- ("2025")
-lesion_labels <- c(
-  lesion = "Any Lesion",
-  dd = "Digital Dermatitis",
-  sole_ulcer = "Sole Ulcer",
-  hemorrhage = "Hemorrhage",
-  wld = "White Line",
-  other = "Other",
-  footrot = "Footrot",
-  injury = "Injury",
-  inf = "Infectious",
-  noninf = "Non-Infectious",
-  toe = "Any Toe Lesion",
-  toe_ulcer = "Toe Ulcer",
-  thin = "Thin Sole",
-  cork = "Corkscrew"
-)
-
-
-graph_overall <- risk |> 
-  filter(lact_group_5 == "LACT > 0") |> 
-  region_les_graph(years = years, farms = farms)
-
-graph_overall
-
-
-```
-
-## Graphical Lesion Distribution by Lactation Group
-
-```{r}
-#| fig-cap: "**More repeats in older cows**"
-#| fig-cap-location: top
-#| fig-height: 11
-
-graph_lact <- risk |> 
-  filter(lact_group_5 != "LACT > 0") |> 
-  region_les_graph(years = years, farms = farms, facet_col = farm,
-                   facet_row = lact_group_5)
-
-graph_lact
-
-```
-
-```{r}
-# set up for culling
-# rough code needs to be improved
-
-lame_cull <- lame_events2 |> 
-  # for development 
-  # select(site_id, primary_tag, date_trim, trimonly, date_cull) |> 
-  # using dtplyr for speed but transfers var labels to new variables
-  lazy_dt() |> 
-  # deal with culling
-  mutate(
-    date_trim = date_event,
-    # create culling variables
-    culled_ever = if_else(is.na(date_left), 0, 1),
-    days_to_cull = date_left - date_trim,
-    # temp censor date need to adjust
-    date_censor = ymd(pull_date) 
-  ) |> 
-  arrange(farm, id_animal, date_trim) |> 
-  group_by(farm, id_animal) |> 
-  # id prev trim date and time
-  mutate(date_prev_trim = lag(date_trim, n = 1),
-         days_from_prev_trim = date_trim - date_prev_trim,
-         days_to_next_trim = lead(days_from_prev_trim, n =1),
-         type_prev_trim = lag(trimonly, n = 1),
-         type_next_trim = lead(trimonly, n = 1),
-         # calc for lame cows time from last trim if last was a trim
-         ## don't think need one below as can just use days from previous trim
-         # days_from_trim = if_else(trimonly == 0 & type_prev_trim == 1,
-         #                        date_trim - date_prev_trim, NA),
-         ## don't need first one as only applies to trimonly to lame 
-         # days_to_next_lame = lead(days_from_trim, n = 1),
-         days_to_next_lame = if_else(type_next_trim == 0, 
-                                     as.numeric(days_to_next_trim),
-                                     NA_real_)
-         ) |> 
-  ungroup() |> 
-  # set days to censor when trimmed again for time_to_event graphs
-  # cows culled and not trimmed again
-  mutate(
-    days_to_censor_trim = case_when(is.na(days_to_next_trim) & culled_ever == 1 ~
-                                     days_to_cull,
-                                    # cows not culled or trimmed
-                                    is.na(days_to_next_trim) & culled_ever == 0 ~
-                                      date_censor - date_trim,
-                                    # cows with next trimdate
-                                    !is.na(days_to_next_trim) ~ 
-                                      days_to_next_trim,
-                                    .default =  as.difftime(NA, unit = "days")
-                                    ),
-    days_to_censor_cull = case_when(culled_ever == 1 ~
-                                     days_to_cull,
-                                    # cows not culled
-                                    culled_ever == 0 ~
-                                      date_censor - date_trim,
-                                    .default =  as.difftime(NA, unit = "days")
-                                    ),
-         next_trim_lame = if_else(is.na(days_to_next_lame),0,1),
-    across(starts_with("days"), as.numeric)
-    ) |> 
-  group_by(farm, id_animal) |> 
-  mutate(culled_last_trim = 
-           if_else(culled_ever == 1 & 
-                     days_to_censor_trim != days_to_censor_cull, 0, 
-                   culled_ever)
-         )|>
-  ungroup() |> 
-  as_tibble()
-
-```
-
-## Time to cull after lesion diagnosis for Non infectious lesions
-
-```{r}
-
-source("functions/fxn_time_to_cull.R")
-
-library(survival)
-library(survminer)
-
-life_colours <- c('Never any lesion' = "#440154ff" ,
-                  'Once' = "#3b528bff",
-                  'Twice' = "#21908cff",
-                  '3 or more times' = "#fde725ff"
-                  )
-
-
-years <- "2025"
-
-time_to_cull_non_inf <- lame_cull |>
-  mutate(year = year(floordate_year)) |>
-  survival_data(years = years,
-                disease = noninf, life_x_dz = life_times_noninf)
-
-km <- time_to_cull_non_inf |>
-  km_fit(facet_col = farm, facet_row = year)
-
-km
-
-```
-
-### Predicted culling risk at specific times for non-infectious lesions
-
-
-```{r}
-#| label: surv-table
-
-# iterate over farms
-# non infectious
-non_inf_table <- map(farms, \(.x) km_fit_table(data = time_to_cull_non_inf,
-                                     farms = .x)
-           )
-
-# label list
-names(non_inf_table) <- farms
-
-```
-
-Tables with cumulative predicted % risk of cow being culled after a lesion occurence at specific time points.
-
-:::: panel-tabset
-```{r}
-#| results: asis
-#| label: non_inf_surv
-
-# this creates tab for each farm
-
-iwalk(non_inf_table, ~ {
-  cat('## ', .y, '\n\n')
-  
-  # needed as a flextable
-  cat(knitr::knit_print(.x), '\n\n')
-  
-})
-
-```
-::::
-
-
-## Other graphing options
-
--   Time to repeat lesion
-
--   Time to lameness after a routine trim for healthy cows
-
--   Recheck compliance
+
+<!-- ## Time to cull after lesion diagnosis for Non infectious lesions -->
+
+<!-- ```{r} -->
+<!-- #| label: survival data -->
+
+<!-- surv_data <- lame_data |>  -->
+<!--     filter(lact_number > 0) |> -->
+<!--     filter(date_event >= date_max_pull - months(12)) |>  -->
+<!--     filter(days_to_censor_cull >0) |>  -->
+<!--     group_by(location_event, id_animal) |> -->
+<!--     slice_max(order_by = date_event, n = 1, with_ties = FALSE) |> -->
+<!--     ungroup() |> -->
+<!--     mutate( -->
+<!--       lesion = case_when( -->
+<!--         lesion == 1 & status_lesion == "New" ~ "New Lesion", -->
+<!--         lesion == 1 & status_lesion == "Chronic" ~ "Chronic Lesion", -->
+<!--         lesion == 1 & status_lesion == "Repeat" ~ "Repeat Lesion", -->
+<!--         lesion == 0 ~ "No Lesion"), -->
+<!--       lesion =  fct_drop(fct_relevel(lesion, c("No Lesion",  -->
+<!--                                                "New Lesion",  -->
+<!--                                                "Repeat Lesion", -->
+<!--                                                "Chronic Lesion") -->
+<!--       )), -->
+<!--       noninf = case_when( -->
+<!--       noninf == 1 & status_lesion == "New" ~ "New Lesion", -->
+<!--       noninf == 1 & status_lesion == "Chronic" ~ "Chronic Lesion", -->
+<!--       noninf == 1 & status_lesion == "Repeat" ~ "Repeat Lesion", -->
+<!--       noninf == 0 ~ "No Lesion" -->
+<!--     ), -->
+<!--     noninf = fct_drop(fct_relevel(noninf, c("No Lesion",  -->
+<!--                                             "New Lesion",  -->
+<!--                                             "Repeat Lesion", -->
+<!--                                             "Chronic Lesion") -->
+<!--     )) -->
+<!--     ) -->
+
+
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- #| label: fig-example_km -->
+<!-- #| echo: true -->
+
+<!-- # survival analysis -->
+<!-- # km anaylsys -->
+
+<!-- farm1 <- surv_data |>  -->
+<!--   filter() -->
+<!--   filter(location_event == farm_name[1]) -->
+
+
+<!-- km_fit <- survfit2(Surv(time = days_to_censor_cull, -->
+<!--                 event = culled_last_trim) ~ noninf,  -->
+<!-- data = surv_data) -->
+
+<!-- surv_plot <- km_fit |>  -->
+<!--   ggsurvfit( -->
+<!--     type = "risk" -->
+<!--   )+ -->
+<!--   add_confidence_interval()+ -->
+<!--   add_quantile()+ -->
+<!--   scale_ggsurvfit()+ -->
+<!--   scale_fill_viridis_d(name = "Non-Infectious Lesion Status")+ -->
+<!--   scale_color_viridis_d(name = "Non-Infectious Lesion Status")+ -->
+<!--   labs(x = "Days to Culling after Trim", -->
+<!--        y = "Percent of Cows Culled")+ -->
+<!--   theme_minimal()+ -->
+<!--   theme(legend.position = "bottom") -->
+
+<!-- surv_plot -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- #| label: fig-example_km_table -->
+<!-- #| echo: true -->
+
+<!-- # times are adjustable -->
+
+<!-- surv_table <- km_fit |> -->
+<!--   tbl_survfit( -->
+<!--     times = c(7, 30, 60, 180), -->
+<!--     label = " ", -->
+<!--     type = "risk", -->
+<!--     label_header = "{time} Days" -->
+<!--   ) %>% -->
+<!--   as_flex_table() %>% # makes formatting and pdf better -->
+<!--   add_header_row( -->
+<!--     top = TRUE, -->
+<!--     values = c( -->
+<!--       "Non-Infectious Lesion Status", -->
+<!--       "% Culled (Confidence Interval) at", -->
+<!--       "", -->
+<!--       "", "" -->
+<!--     ) -->
+<!--   ) %>% -->
+<!--   bold(i = 1, bold = TRUE, part = "header") %>% # bolds headers -->
+<!--   bold(i = 2, bold = TRUE, part = "header") %>% -->
+<!--   merge_at(i = 1:2, j = 1, part = "header") %>% # merges 1st row -->
+<!--   merge_at(i = 1, j = 2:5, part = "header") # merges top columns -->
+
+<!-- surv_table -->
+
+
+<!-- ``` -->
+
+
+
+
+
+
+<!-- ```{r} -->
+
+<!-- source("functions/fxn_time_to_cull.R") -->
+
+<!-- library(survival) -->
+<!-- library(survminer) -->
+
+<!-- life_colours <- c('Never any lesion' = "#440154ff" , -->
+<!--                   'Once' = "#3b528bff", -->
+<!--                   'Twice' = "#21908cff", -->
+<!--                   '3 or more times' = "#fde725ff" -->
+<!--                   ) -->
+
+
+<!-- years <- "2025" -->
+
+<!-- time_to_cull_non_inf <- lame_cull |> -->
+<!--   mutate(year = year(floordate_year)) |> -->
+<!--   survival_data(years = years, -->
+<!--                 disease = noninf, life_x_dz = life_times_noninf) -->
+
+<!-- km <- time_to_cull_non_inf |> -->
+<!--   km_fit(facet_col = farm, facet_row = year) -->
+
+<!-- km -->
+
+<!-- ``` -->
+
+<!-- ### Predicted culling risk at specific times for non-infectious lesions -->
+
+
+<!-- ```{r} -->
+<!-- #| label: surv-table -->
+
+<!-- # iterate over farms -->
+<!-- # non infectious -->
+<!-- non_inf_table <- map(farms, \(.x) km_fit_table(data = time_to_cull_non_inf, -->
+<!--                                      farms = .x) -->
+<!--            ) -->
+
+<!-- # label list -->
+<!-- names(non_inf_table) <- farms -->
+
+<!-- ``` -->
+
+<!-- Tables with cumulative predicted % risk of cow being culled after a lesion occurence at specific time points. -->
+
+<!-- :::: panel-tabset -->
+<!-- ```{r} -->
+<!-- #| results: asis -->
+<!-- #| label: non_inf_surv -->
+
+<!-- # this creates tab for each farm -->
+
+<!-- iwalk(non_inf_table, ~ { -->
+<!--   cat('## ', .y, '\n\n') -->
+
+<!--   # needed as a flextable -->
+<!--   cat(knitr::knit_print(.x), '\n\n') -->
+
+<!-- }) -->
+
+<!-- ``` -->
+<!-- :::: -->
+
+
+<!-- ## Other graphing options -->
+
+<!-- -   Time to repeat lesion -->
+
+<!-- -   Time to lameness after a routine trim for healthy cows -->
+
+<!-- -   Recheck compliance -->
