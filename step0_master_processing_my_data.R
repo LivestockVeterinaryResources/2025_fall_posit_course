@@ -189,7 +189,7 @@ quarto::quarto_render("report_data_dictionary.qmd")
 quarto::quarto_render("report_explore_lame_new.qmd")
 
 ## Example reports ---------------------------
-# quarto::quarto_render("report_how_to_use_denominators.qmd")
+quarto::quarto_render("report_how_to_use_denominators.qmd")
 
 # FUTURE STUFF ---------------------------
 
