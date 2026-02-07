@@ -413,6 +413,9 @@ les_graph
 
 :::
 
+<!-- # add DIM stuff -->
+<!-- # note doesn't work as 1 herd doens't have non infectious lesions so need a check -->
+<!-- Add repeat stuff from VVC here. -->
 
 <!-- ## Time to cull after lesion diagnosis for Non infectious lesions -->
 
