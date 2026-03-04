@@ -140,6 +140,8 @@ The most straight forward way to look at disease by day of phase is to begin wit
 
 ```{r}
 
+events_formatted<-read_parquet('data/intermediate_files/events_formatted.parquet')
+
 #check on odd things - only 2 events with neg dim
 neg_dim<-events_formatted%>%filter(event %in% 'PNEU')%>%
   filter(dim_event<0)
