@@ -46,23 +46,24 @@ source("functions/fxn_treatment.R")
 ## If you choose to use custom functions you must source them when you assign them
 
 ### animal id  (turn on only one of these lines) ---------
-# fxn_assign_id_animal <- fxn_assign_id_animal_default
-fxn_assign_id_animal <- fxn_assign_id_animal_parnell
+fxn_assign_id_animal <- fxn_assign_id_animal_default
+# fxn_assign_id_animal <- fxn_assign_id_animal_parnell
 
 ### denominator granularity-----------------------
-#Create a list of time periods (number of days) by which denominators will be created.  
-#The standard options are 21, 30, 90, 365.  However any number works.
-#You can add or delete as you wish, except for yearly. Yearly needs to stay
-denominator_time_periods<-c(#21, 
-                            30, 
-                            #90, 
-                            365) #do NOT delete the yearly option or you will break the data_dictionary
+# Create a list of time periods (number of days) by which denominators will be created.
+# The standard options are 21, 30, 90, 365.  However any number works.
+# You can add or delete as you wish, except for yearly. Yearly needs to stay
+denominator_time_periods <- c( # 21,
+  30,
+  # 90,
+  365
+) # do NOT delete the yearly option or you will break the data_dictionary
 
 ### day of phase parameters-----------------------------------
 ## set the parameters for grouping by DIM or heifers by days of age
-set_cut_by_days = 100 #number of days in each group
-set_top_cut = 400 #the final group for cow DIM with be this number and anything higher
-set_top_cut_hfr = 700 #the final group for heifer days of age with be this number and anything higher
+set_cut_by_days <- 100 # number of days in each group
+set_top_cut <- 400 # the final group for cow DIM with be this number and anything higher
+set_top_cut_hfr <- 700 # the final group for heifer days of age with be this number and anything higher
 
 ### parsing---------
 ## parse_free_text options:
@@ -73,8 +74,8 @@ fxn_parse_protocols <- fxn_parse_protocols_default
 
 ### locations  ((turn on only one location function) ----------
 set_farm_name <- "Example Herd" # if you are not using the default location function this name will never be used
-# fxn_assign_location_event <- fxn_assign_location_event_default
-fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
+fxn_assign_location_event <- fxn_assign_location_event_default
+# fxn_assign_location_event <- fxn_assign_location_event_parnell_ANON
 
 # detect_location_lesion options:
 fxn_detect_location_lesion <- fxn_detect_location_lesion_default
@@ -101,12 +102,12 @@ set_outcome_gap_lactation <- 1
 
 ### clean up old data ---------------------------------
 #*** DANGER*** make sure you understand this setting if you change it to TRUE
-clean_slate <- TRUE # this will delete all data in data/event_files and data/intermediate files
+clean_slate <- FALSE # this will delete all data in data/event_files and data/intermediate files
 
 ### EXAMPLE data google drive-----------
 # set this to TRUE to pull EXAMPLE data from google drive.
 # if you already have the data that you want in data/event_files set it to false
-get_EXAMPLE_data_from_google_drive <- TRUE
+get_EXAMPLE_data_from_google_drive <- FALSE
 
 ### milk data setings---------
 # if you also want to pull in milk data set this to true
@@ -139,15 +140,15 @@ if (get_EXAMPLE_data_from_google_drive == TRUE) {
 }
 
 ### Step 1 Read in data-------------
-source("step1_read_in_data.R") #creates ***events.parquet*** reads in the data, formats dates, adds lactation groups and other basic data prep steps
+source("step1_read_in_data.R") # creates ***events.parquet*** reads in the data, formats dates, adds lactation groups and other basic data prep steps
 
 ### Step 2 create Intermediate Files----------------------
 source("step2_create_intermediate_files.R") # fundamental files: animals.parquet, animal_lactations.parquet, events.parquet
 
 ### Step 3 Create Denominators ---------------------
 ## under development:
-####Create denominator files by time periods ------------------------
-for (i in seq_along(denominator_time_periods)){
+#### Create denominator files by time periods ------------------------
+for (i in seq_along(denominator_time_periods)) {
   quarto::quarto_render(
     input = "step3_denominators_by_time_period.qmd",
     execute_params = list(
@@ -159,15 +160,15 @@ for (i in seq_along(denominator_time_periods)){
   )
 }
 
-####Create denominator files by CALENDAR time periods ------------------------
-  quarto::quarto_render(
-    input = "step3_denominators_by_calendar_time.qmd",
-    execute_params = list(
-      cut_by_days = set_cut_by_days,
-      top_cut = set_top_cut,
-      top_cut_hfr = set_top_cut_hfr
-    )
+#### Create denominator files by CALENDAR time periods ------------------------
+quarto::quarto_render(
+  input = "step3_denominators_by_calendar_time.qmd",
+  execute_params = list(
+    cut_by_days = set_cut_by_days,
+    top_cut = set_top_cut,
+    top_cut_hfr = set_top_cut_hfr
   )
+)
 
 #### run the report named (report_how_to_use_denominators.qmd) to learn to use denominators
 
