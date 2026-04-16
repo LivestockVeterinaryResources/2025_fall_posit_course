@@ -146,62 +146,62 @@ source("step1_read_in_data.R") # creates ***events.parquet*** reads in the data,
 source("step2_create_intermediate_files.R") # fundamental files: animals.parquet, animal_lactations.parquet, events.parquet
 
 ### Step 3 Create Denominators ---------------------
-## under development:
-#### Create denominator files by time periods ------------------------
-for (i in seq_along(denominator_time_periods)) {
-  quarto::quarto_render(
-    input = "step3_denominators_by_time_period.qmd",
-    execute_params = list(
-      denominator_granularity = denominator_time_periods[[i]],
-      cut_by_days = set_cut_by_days,
-      top_cut = set_top_cut,
-      top_cut_hfr = set_top_cut_hfr
-    )
-  )
-}
-
-#### Create denominator files by CALENDAR time periods ------------------------
-quarto::quarto_render(
-  input = "step3_denominators_by_calendar_time.qmd",
-  execute_params = list(
-    cut_by_days = set_cut_by_days,
-    top_cut = set_top_cut,
-    top_cut_hfr = set_top_cut_hfr
-  )
-)
-
-#### run the report named (report_how_to_use_denominators.qmd) to learn to use denominators
-
-##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
-rm(list = ls()) # clean environment
-quarto::quarto_render("step3_create_denominators_lact_dim_season.qmd") # denominators for lameness report
-
-
-
-# Step 4 Report Templates------------------------
-rm(list = ls()) # clean environment
-
-## quick check data reports--------------------------------
-quarto::quarto_render("report_explore_event_types.qmd")
-quarto::quarto_render("report_data_dictionary.qmd")
-
-## Gerard's lameness report ---------------------------
-quarto::quarto_render("report_explore_lame_new.qmd")
-
-## Example reports ---------------------------
-quarto::quarto_render("report_how_to_use_denominators.qmd")
-
-# FUTURE STUFF ---------------------------
-
-# quarto::quarto_render('step3_report_disease_template.qmd')
-# quarto::quarto_render('animal_counts.qmd')
-# cohort disease incidence (Location, Lactation, Breed, etc)
-# timing of disease (DIM (or Age) and calendar time distributions, Kaplan Meier)
-# perfomrance and disease (milk, gain, repro)
-
-# old stuff
-# source('step2disease_create_intermediate_files.R') #under development #disease files
-
-
-# TODO List --------------------------------------------
-# add milk data for example farms
+# ## under development:
+# #### Create denominator files by time periods ------------------------
+# for (i in seq_along(denominator_time_periods)) {
+#   quarto::quarto_render(
+#     input = "step3_denominators_by_time_period.qmd",
+#     execute_params = list(
+#       denominator_granularity = denominator_time_periods[[i]],
+#       cut_by_days = set_cut_by_days,
+#       top_cut = set_top_cut,
+#       top_cut_hfr = set_top_cut_hfr
+#     )
+#   )
+# }
+# 
+# #### Create denominator files by CALENDAR time periods ------------------------
+# quarto::quarto_render(
+#   input = "step3_denominators_by_calendar_time.qmd",
+#   execute_params = list(
+#     cut_by_days = set_cut_by_days,
+#     top_cut = set_top_cut,
+#     top_cut_hfr = set_top_cut_hfr
+#   )
+# )
+# 
+# #### run the report named (report_how_to_use_denominators.qmd) to learn to use denominators
+# 
+# ##### standard denominators always group by location_event_list (animal level), and lactation group (basic (Heifer, Lact>0), repro (Heifer, 1, 2+), lact_group (Heifer, 1, 2, 3+), lact_group_5 (Heifer, 1, 2, 3, 4, 5+))
+# rm(list = ls()) # clean environment
+# quarto::quarto_render("step3_create_denominators_lact_dim_season.qmd") # denominators for lameness report
+# 
+# 
+# 
+# # Step 4 Report Templates------------------------
+# rm(list = ls()) # clean environment
+# 
+# ## quick check data reports--------------------------------
+# #quarto::quarto_render("report_explore_event_types.qmd")
+# #quarto::quarto_render("report_data_dictionary.qmd")
+# 
+# ## Gerard's lameness report ---------------------------
+# #quarto::quarto_render("report_explore_lame_new.qmd")
+# 
+# ## Example reports ---------------------------
+# #quarto::quarto_render("report_how_to_use_denominators.qmd")
+# 
+# # FUTURE STUFF ---------------------------
+# 
+# # quarto::quarto_render('step3_report_disease_template.qmd')
+# # quarto::quarto_render('animal_counts.qmd')
+# # cohort disease incidence (Location, Lactation, Breed, etc)
+# # timing of disease (DIM (or Age) and calendar time distributions, Kaplan Meier)
+# # perfomrance and disease (milk, gain, repro)
+# 
+# # old stuff
+# # source('step2disease_create_intermediate_files.R') #under development #disease files
+# 
+# 
+# # TODO List --------------------------------------------
+# # add milk data for example farms
